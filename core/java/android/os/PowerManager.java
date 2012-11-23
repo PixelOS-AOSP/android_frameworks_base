@@ -654,7 +654,8 @@ public final class PowerManager {
             BRIGHTNESS_CONSTRAINT_TYPE_MINIMUM,
             BRIGHTNESS_CONSTRAINT_TYPE_MAXIMUM,
             BRIGHTNESS_CONSTRAINT_TYPE_DEFAULT,
-            BRIGHTNESS_CONSTRAINT_TYPE_DIM
+            BRIGHTNESS_CONSTRAINT_TYPE_DIM,
+            BRIGHTNESS_CONSTRAINT_TYPE_DEFAULT_BUTTON
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface BrightnessConstraint{}
@@ -681,6 +682,12 @@ public final class PowerManager {
      * @hide
      */
     public static final int BRIGHTNESS_CONSTRAINT_TYPE_DIM = 3;
+
+    /**
+     * Brightness constraint type: minimum allowed value.
+     * @hide
+     */
+    public static final int BRIGHTNESS_CONSTRAINT_TYPE_DEFAULT_BUTTON = 8;
 
     /**
      * @hide
