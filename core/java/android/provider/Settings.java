@@ -7260,6 +7260,7 @@ public final class Settings {
             PRIVATE_SETTINGS.add(DISPLAY_PICTURE_ADJUSTMENT);
             PRIVATE_SETTINGS.add(LIVE_DISPLAY_HINTED);
             PRIVATE_SETTINGS.add(DISPLAY_ANTI_FLICKER);
+            PRIVATE_SETTINGS.add(LOW_POWER_REFRESH_RATE);
             PRIVATE_SETTINGS.add(HIGH_TOUCH_POLLING_RATE_ENABLE);
             PRIVATE_SETTINGS.add(HIGH_TOUCH_SENSITIVITY_ENABLE);
             PRIVATE_SETTINGS.add(LOCKSCREEN_ENABLE_POWER_MENU);
@@ -21122,6 +21123,13 @@ public final class Settings {
          * @hide
          */
         public static final String SCENE_CONTAINER_ENABLED = "scene_container_enabled";
+
+        /**
+         * Whether to wake the display when plugging or unplugging the charger
+         * @hide
+         */
+        public static final String WAKE_WHEN_PLUGGED_OR_UNPLUGGED =
+                "wake_when_plugged_or_unplugged";
 
         /**
          * Settings migrated from Wear OS settings provider.
