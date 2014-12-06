@@ -150,6 +150,23 @@
                 android:gravity="center_vertical|end"
                 android:clipChildren="false">
 
+                <com.android.systemui.statusbar.CustomStatusBarItemHolder
+                    android:id="@+id/network_traffic_holder"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layoutDirection="ltr"
+                    android:gravity="center"
+                    android:paddingLeft="2dp"
+                    >
+                    <com.android.internal.statusbar.NetworkTraffic
+                        android:id="@+id/network_traffic"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:maxLines="2"
+                        android:gravity="center"
+                    />
+                </com.android.systemui.statusbar.CustomStatusBarItemHolder>
+
                 <include
                     android:id="@+id/user_switcher_container"
                     android:layout_width="wrap_content"
