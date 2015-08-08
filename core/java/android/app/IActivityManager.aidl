@@ -984,6 +984,11 @@ interface IActivityManager {
     boolean shouldForceCutoutFullscreen(in String packageName);
 
     /**
+     *  Should disable touch if three fingers to screen shot is active?
+     */
+    boolean isSwipeToScreenshotGestureActive();
+
+    /**
      * Notify AMS about binder transactions to frozen apps.
      *
      * @param debugPid The binder transaction sender
