@@ -1782,6 +1782,10 @@ public class ActivityManagerService extends IActivityManager.Stub
 
     static final HostingRecord sNullHostingRecord =
             new HostingRecord(HostingRecord.HOSTING_TYPE_EMPTY);
+
+    final SwipeToScreenshotObserver mSwipeToScreenshotObserver;
+    private boolean mIsSwipeToScreenshotEnabled;
+
     /**
      * Used to notify activity lifecycle events.
      */
@@ -2633,6 +2637,7 @@ public class ActivityManagerService extends IActivityManager.Stub
         mApplicationSharedMemoryReadOnlyFd = null;
         sCreatorTokenCacheCleaner = new Handler(mHandlerThread.getLooper());
         mMemoryLimiter = MemoryLimiter.getDefaultMemoryLimiter(mContext);
+        mSwipeToScreenshotObserver = null;
     }
 
     // Note: This method is invoked on the main thread but may need to attach various
@@ -2768,6 +2773,7 @@ public class ActivityManagerService extends IActivityManager.Stub
             Slog.e(TAG, "Failed to get read only fd for shared memory", e);
             throw new RuntimeException(e);
         }
+        mSwipeToScreenshotObserver = new SwipeToScreenshotObserver(mHandler, mContext);
     }
 
     void setBroadcastQueueForTest(BroadcastQueue broadcastQueue) {
@@ -9665,6 +9671,7 @@ public class ActivityManagerService extends IActivityManager.Stub
                     delayUserDataLocking, backgroundUserConsideredDispensableTimeSecs,
                     skipKeyguardWhenSwitchingToUnlockedUsers,
                     hideUserSwitchingUiDuringSetup);
+            mSwipeToScreenshotObserver.registerObserver();
         }
         mAppErrors.loadAppsNotReportingCrashesFromConfig(res.getString(
                 com.android.internal.R.string.config_appsNotReportingCrashes));
@@ -20917,6 +20924,39 @@ public class ActivityManagerService extends IActivityManager.Stub
         synchronized (mMediaProjectionTokenMap) {
             final int index = mMediaProjectionTokenMap.indexOfKey(uid);
             return index >= 0 && !mMediaProjectionTokenMap.valueAt(index).isEmpty();
+        }
+    }
+
+    private class SwipeToScreenshotObserver extends ContentObserver {
+
+        private final Context mContext;
+
+        public SwipeToScreenshotObserver(Handler handler, Context context) {
+            super(handler);
+            mContext = context;
+        }
+
+        public void registerObserver() {
+            mContext.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(Settings.System.THREE_FINGER_GESTURE),
+                    false, this, UserHandle.USER_ALL);
+            update();
+        }
+
+        private void update() {
+            mIsSwipeToScreenshotEnabled = Settings.System.getIntForUser(mContext.getContentResolver(),
+                    Settings.System.THREE_FINGER_GESTURE, 0, UserHandle.USER_CURRENT) == 1;
+        }
+
+        public void onChange(boolean selfChange) {
+            update();
+        }
+    }
+
+    @Override
+    public boolean isSwipeToScreenshotGestureActive() {
+        synchronized (this) {
+            return mIsSwipeToScreenshotEnabled && SystemProperties.getBoolean("sys.android.screenshot", false);
         }
     }
 
