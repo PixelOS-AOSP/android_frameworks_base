@@ -158,24 +158,24 @@ public class ChargingStatusProviderTest extends SysuiTestCase {
     private BatteryStatus getUnpluggedBattery() {
         return new BatteryStatus(BatteryManager.BATTERY_STATUS_NOT_CHARGING,
                 80, BatteryManager.BATTERY_PLUGGED_ANY, BatteryManager.BATTERY_HEALTH_GOOD,
-                0, true);
+                0, true, false);
     }
 
     private BatteryStatus getChargingBattery() {
         return new BatteryStatus(BatteryManager.BATTERY_STATUS_CHARGING,
                 80, BatteryManager.BATTERY_PLUGGED_DOCK,
-                BatteryManager.BATTERY_HEALTH_GOOD, 0, true);
+                BatteryManager.BATTERY_HEALTH_GOOD, 0, true, false);
     }
 
     private BatteryStatus getChargedBattery() {
         return new BatteryStatus(BatteryManager.BATTERY_STATUS_FULL,
                 100, BatteryManager.BATTERY_PLUGGED_DOCK,
-                BatteryManager.BATTERY_HEALTH_GOOD, 0, true);
+                BatteryManager.BATTERY_HEALTH_GOOD, 0, true, false);
     }
 
     private BatteryStatus getBatteryDefender() {
         return new BatteryStatus(BatteryManager.BATTERY_STATUS_CHARGING,
                 80, BatteryManager.BATTERY_PLUGGED_DOCK,
-                BatteryManager.CHARGING_POLICY_ADAPTIVE_LONGLIFE, 0, true);
+                BatteryManager.CHARGING_POLICY_ADAPTIVE_LONGLIFE, 0, true, false);
     }
 }
