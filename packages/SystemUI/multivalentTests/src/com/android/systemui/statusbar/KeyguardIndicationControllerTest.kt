@@ -905,6 +905,7 @@ class KeyguardIndicationControllerTest : KeyguardIndicationControllerBaseTest() 
                 100, /* health */
                 0, /* maxChargingWattage */
                 true, /* present */
+                false, /* oemFastCharging */
             )
 
         mController.setVisible(true)
@@ -929,6 +930,7 @@ class KeyguardIndicationControllerTest : KeyguardIndicationControllerBaseTest() 
                 100, /* health */
                 0, /* maxChargingWattage */
                 true, /* present */
+                false, /* oemFastCharging */
             )
 
         mController.getKeyguardCallback().onRefreshBatteryInfo(status)
@@ -947,6 +949,7 @@ class KeyguardIndicationControllerTest : KeyguardIndicationControllerBaseTest() 
                 100, /* health */
                 0, /* maxChargingWattage */
                 true, /* present */
+                false, /* oemFastCharging */
             )
 
         mController.getKeyguardCallback().onRefreshBatteryInfo(status)
@@ -1000,6 +1003,7 @@ class KeyguardIndicationControllerTest : KeyguardIndicationControllerBaseTest() 
                 BatteryManager.CHARGING_POLICY_ADAPTIVE_LONGLIFE,
                 0, /* maxChargingWattage */
                 true, /* present */
+                false, /* oemFastCharging */
             )
 
         mController.getKeyguardCallback().onRefreshBatteryInfo(status)
@@ -1025,6 +1029,7 @@ class KeyguardIndicationControllerTest : KeyguardIndicationControllerBaseTest() 
                 BatteryManager.CHARGING_POLICY_ADAPTIVE_LONGLIFE,
                 0, /* maxChargingWattage */
                 true, /* present */
+                false, /* oemFastCharging */
             )
 
         mController.getKeyguardCallback().onRefreshBatteryInfo(status)
@@ -1050,6 +1055,7 @@ class KeyguardIndicationControllerTest : KeyguardIndicationControllerBaseTest() 
                 BatteryManager.CHARGING_POLICY_DEFAULT,
                 0, /* maxChargingWattage */
                 true, /* present */
+                false, /* oemFastCharging */
             )
 
         mController.getKeyguardCallback().onRefreshBatteryInfo(status)
@@ -1073,6 +1079,7 @@ class KeyguardIndicationControllerTest : KeyguardIndicationControllerBaseTest() 
                 BatteryManager.CHARGING_POLICY_ADAPTIVE_LONGLIFE,
                 0, /* maxChargingWattage */
                 true, /* present */
+                false, /* oemFastCharging */
             )
 
         mController.getKeyguardCallback().onRefreshBatteryInfo(status)

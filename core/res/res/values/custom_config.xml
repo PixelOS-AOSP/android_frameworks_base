@@ -147,4 +147,14 @@
     <!-- Default values for status bar DT2S gesture -->
     <bool name="config_dt2sGestureAvailable">false</bool>
     <bool name="config_dt2sGestureEnabledByDefault">false</bool>
+
+    <!-- Array of:
+        - Path to fast charging status file
+        - Delimiter ";"
+        - Value if fast charging is active
+        Used to detect whether an oem fast charger is active
+        Example: <item>/sys/class/power_supply/battery/fastchg_status;1</item>
+    -->
+    <string-array name="config_oemFastChargerStatusPaths" translatable="false">
+    </string-array>
 </resources>
