@@ -37,6 +37,7 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -133,7 +134,7 @@ class GlobalActionsInteractorTest : SysuiTestCase() {
         kosmos.runTest {
             underTest.reboot(false)
 
-            verify(globalActionsManager).reboot(false)
+            verify(globalActionsManager).reboot(false, null)
         }
 
     @Test
@@ -153,7 +154,7 @@ class GlobalActionsInteractorTest : SysuiTestCase() {
             val result = underTest.reboot(true)
 
             assertThat(result).isTrue()
-            verify(globalActionsManager).reboot(true)
+            verify(globalActionsManager).reboot(true, null)
         }
 
     @Test
@@ -173,7 +174,7 @@ class GlobalActionsInteractorTest : SysuiTestCase() {
             val result = underTest.reboot(true)
 
             assertThat(result).isFalse()
-            verify(globalActionsManager, never()).reboot(any())
+            verify(globalActionsManager, never()).reboot(any(), anyOrNull())
         }
 
     private fun Kosmos.setUnlocked(isUnlocked: Boolean) {
