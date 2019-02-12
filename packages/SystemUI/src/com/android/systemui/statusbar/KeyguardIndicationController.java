@@ -70,6 +70,7 @@ import android.os.Message;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.text.format.Formatter;
 import android.util.Pair;
@@ -152,6 +153,13 @@ public class KeyguardIndicationController {
 
     public static final String TAG = "KeyguardIndication";
     private static final boolean DEBUG_CHARGING_SPEED = false;
+    private static final float MICRO_UNITS_PER_UNIT = 1_000_000f;
+    private static final float MILLI_UNITS_PER_UNIT = 1_000f;
+    private static final float TENTHS_PER_UNIT = 10f;
+    private static final float MAX_VALID_CHARGING_CURRENT_UA = 20_000_000f;
+    private static final float MIN_VALID_BATTERY_VOLTAGE_UV = 3_000_000f;
+    private static final float MAX_VALID_BATTERY_VOLTAGE_UV = 21_000_000f;
+    private static final float MAX_VALID_CHARGING_WATTAGE_UW = 240_000_000f;
 
     private static final int MSG_SHOW_ACTION_TO_UNLOCK = 1;
     private static final int MSG_RESET_ERROR_MESSAGE_ON_SCREEN_ON = 2;
@@ -185,6 +193,7 @@ public class KeyguardIndicationController {
     protected final @Background DelayableExecutor mBackgroundExecutor;
     private final LockPatternUtils mLockPatternUtils;
     private final FalsingManager mFalsingManager;
+    private final BatteryManager mBatteryManager;
     private final KeyguardBypassController mKeyguardBypassController;
     private final AccessibilityManager mAccessibilityManager;
     private final Handler mHandler;
@@ -227,10 +236,13 @@ public class KeyguardIndicationController {
     private boolean mEnableBatteryDefender;
     private boolean mBatteryDead;
     private boolean mIncompatibleCharger;
-    private int mChargingWattage;
+    private float mChargingWattage;
     private int mBatteryLevel = -1;
     private boolean mBatteryPresent = true;
     protected long mChargingTimeRemaining;
+    private float mChargingCurrent;
+    private float mChargingVoltage;
+    private float mTemperature;
     private Pair<String, BiometricSourceType> mBiometricErrorMessageToShowOnScreenOn;
     private Set<Integer> mCoExFaceAcquisitionMsgIdsToShow;
     private final FaceHelpMessageDeferral mFaceAcquiredMessageDeferral;
@@ -356,6 +368,7 @@ public class KeyguardIndicationController {
         mLockPatternUtils = lockPatternUtils;
         mAuthController = authController;
         mFalsingManager = falsingManager;
+        mBatteryManager = mContext.getSystemService(BatteryManager.class);
         mKeyguardBypassController = keyguardBypassController;
         mAccessibilityManager = accessibilityManager;
         mScreenLifecycle = screenLifecycle;
@@ -666,7 +679,7 @@ public class KeyguardIndicationController {
         if (mBatteryPresent && (mPowerPluggedIn || mEnableBatteryDefender)) {
             String powerIndication = computePowerIndication();
             if (DEBUG_CHARGING_SPEED) {
-                powerIndication += ",  " + (mChargingWattage / 1000) + " mW";
+                powerIndication += ",  " + (mChargingWattage / MILLI_UNITS_PER_UNIT) + " mW";
             }
 
             mKeyguardLogger.logUpdateBatteryIndication(powerIndication, mPowerPluggedIn);
@@ -1215,27 +1228,12 @@ public class KeyguardIndicationController {
         if (mBatteryDead) {
             return mContext.getResources().getString(R.string.keyguard_plugged_in, percentage);
         }
-
         final boolean hasChargingTime = mChargingTimeRemaining > 0;
         int chargingId;
         if (mPowerPluggedInWired) {
-            switch (mChargingSpeed) {
-                case BatteryStatus.CHARGING_FAST:
-                    chargingId = hasChargingTime
-                            ? R.string.keyguard_indication_charging_time_fast
-                            : R.string.keyguard_plugged_in_charging_fast;
-                    break;
-                case BatteryStatus.CHARGING_SLOWLY:
-                    chargingId = hasChargingTime
-                            ? R.string.keyguard_indication_charging_time_slowly
-                            : R.string.keyguard_plugged_in_charging_slowly;
-                    break;
-                default:
-                    chargingId = hasChargingTime
-                            ? R.string.keyguard_indication_charging_time
-                            : R.string.keyguard_plugged_in;
-                    break;
-            }
+            chargingId = hasChargingTime
+                    ? R.string.keyguard_indication_charging_time
+                    : R.string.keyguard_plugged_in;
         } else if (mPowerPluggedInWireless) {
             chargingId = hasChargingTime
                     ? R.string.keyguard_indication_charging_time_wireless
@@ -1250,14 +1248,50 @@ public class KeyguardIndicationController {
                     : R.string.keyguard_plugged_in;
         }
 
+        String batteryInfo = "";
+        boolean showBatteryInfo = Settings.System.getIntForUser(
+                mContext.getContentResolver(),
+                Settings.System.LOCKSCREEN_BATTERY_INFO,
+                1,
+                UserHandle.USER_CURRENT) == 1;
+        if (showBatteryInfo) {
+            if (mChargingCurrent >= MICRO_UNITS_PER_UNIT) {
+                batteryInfo = String.format("%.1f",
+                        mChargingCurrent / MICRO_UNITS_PER_UNIT) + "A";
+            } else if (mChargingCurrent > 0) {
+                batteryInfo = String.format("%.0f",
+                        mChargingCurrent / MILLI_UNITS_PER_UNIT) + "mA";
+            }
+            if (mChargingWattage > 0) {
+                batteryInfo = (batteryInfo.isEmpty() ? "" : batteryInfo + " · ")
+                        + String.format("%.1f",
+                                mChargingWattage / MICRO_UNITS_PER_UNIT) + "W";
+            }
+            if (mChargingVoltage > 0) {
+                batteryInfo = (batteryInfo.isEmpty() ? "" : batteryInfo + " · ")
+                        + String.format("%.1f",
+                                mChargingVoltage / MICRO_UNITS_PER_UNIT) + "V";
+            }
+            if (mTemperature > 0) {
+                batteryInfo = (batteryInfo.isEmpty() ? "" : batteryInfo + " · ")
+                        + String.format("%.1f",
+                                mTemperature / TENTHS_PER_UNIT) + "°C";
+            }
+            if (!batteryInfo.isEmpty()) {
+                batteryInfo = "\n" + batteryInfo;
+            }
+        }
+
+        String chargingText;
         if (hasChargingTime) {
             String chargingTimeFormatted = Formatter.formatShortElapsedTimeRoundingUpToMinutes(
                     mContext, mChargingTimeRemaining);
-            return mContext.getResources().getString(chargingId, chargingTimeFormatted,
-                    percentage);
+            chargingText = mContext.getResources().getString(
+                    chargingId, chargingTimeFormatted, percentage);
         } else {
-            return mContext.getResources().getString(chargingId, percentage);
+            chargingText = mContext.getResources().getString(chargingId, percentage);
         }
+        return chargingText + batteryInfo;
     }
 
     public void setStatusBarKeyguardViewManager(
@@ -1403,11 +1437,28 @@ public class KeyguardIndicationController {
             mPowerPluggedInDock = status.isPluggedInDock() && isChargingOrFull;
             mPowerPluggedIn = isPowerPluggedIn(status, isChargingOrFull);
             mPowerCharged = status.isCharged();
-            mChargingWattage = status.maxChargingWattage;
+            final Intent batteryIntent = mContext.registerReceiver(
+                    null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            final float maxChargingCurrent = batteryIntent != null
+                    ? batteryIntent.getIntExtra("max_charging_current", 0)
+                    : 0;
+            final float maxChargingVoltage = batteryIntent != null
+                    ? batteryIntent.getIntExtra("max_charging_voltage", 0)
+                    : 0;
+            final float temperature = batteryIntent != null
+                    ? batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
+                    : 0;
+            mChargingCurrent = getRealtimeChargingCurrent(
+                    isChargingOrFull, maxChargingCurrent);
+            mChargingVoltage = getRealtimeChargingVoltage(
+                    batteryIntent, maxChargingVoltage);
+            mChargingWattage = getRealtimeChargingWattage(
+                    mChargingCurrent, mChargingVoltage, status.maxChargingWattage);
             mChargingSpeed = status.getChargingSpeed(mContext);
             mChargingStatus = status.chargingStatus;
             mBatteryLevel = status.level;
             mBatteryPresent = status.present;
+            mTemperature = temperature;
             mBatteryDefender = isBatteryDefender(status);
             mBatteryDead = status.isDead();
             // when the battery is overheated, device doesn't charge so only guard on pluggedIn:
@@ -1424,6 +1475,63 @@ public class KeyguardIndicationController {
             mKeyguardLogger.logRefreshBatteryInfo(isChargingOrFull, mPowerPluggedIn, mBatteryLevel,
                     mBatteryDefender);
             updateDeviceEntryIndication(!wasPluggedIn && mPowerPluggedInWired);
+        }
+
+        private float getRealtimeChargingCurrent(
+                boolean isChargingOrFull, float fallbackCurrentMicroAmps) {
+            if (mBatteryManager == null || !isChargingOrFull) {
+                return fallbackCurrentMicroAmps;
+            }
+
+            final int rawCurrentMicroAmps = mBatteryManager.getIntProperty(
+                    BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+            if (rawCurrentMicroAmps == Integer.MIN_VALUE || rawCurrentMicroAmps == 0) {
+                return fallbackCurrentMicroAmps;
+            }
+
+            float currentMicroAmps = rawCurrentMicroAmps;
+            if (currentMicroAmps < 0) {
+                currentMicroAmps = -currentMicroAmps;
+            }
+
+            if (currentMicroAmps <= 0 || currentMicroAmps > MAX_VALID_CHARGING_CURRENT_UA) {
+                return fallbackCurrentMicroAmps;
+            }
+
+            return currentMicroAmps;
+        }
+
+        private float getRealtimeChargingVoltage(
+                Intent batteryIntent, float fallbackVoltageMicroVolts) {
+            if (batteryIntent == null) {
+                return fallbackVoltageMicroVolts;
+            }
+
+            final int voltageMilliVolts = batteryIntent.getIntExtra(
+                    BatteryManager.EXTRA_VOLTAGE, -1);
+            if (voltageMilliVolts <= 0) {
+                return fallbackVoltageMicroVolts;
+            }
+
+            final float voltageMicroVolts = voltageMilliVolts * MILLI_UNITS_PER_UNIT;
+            return voltageMicroVolts >= MIN_VALID_BATTERY_VOLTAGE_UV
+                    && voltageMicroVolts <= MAX_VALID_BATTERY_VOLTAGE_UV
+                    ? voltageMicroVolts
+                    : fallbackVoltageMicroVolts;
+        }
+
+        private float getRealtimeChargingWattage(
+                float chargingCurrentMicroAmps, float chargingVoltageMicroVolts,
+                float fallbackWattageMicroWatts) {
+            if (chargingCurrentMicroAmps <= 0 || chargingVoltageMicroVolts <= 0) {
+                return fallbackWattageMicroWatts;
+            }
+
+            final float wattageMicroWatts =
+                    (chargingCurrentMicroAmps * chargingVoltageMicroVolts) / MICRO_UNITS_PER_UNIT;
+            return wattageMicroWatts > 0 && wattageMicroWatts <= MAX_VALID_CHARGING_WATTAGE_UW
+                    ? wattageMicroWatts
+                    : fallbackWattageMicroWatts;
         }
 
         @Override
