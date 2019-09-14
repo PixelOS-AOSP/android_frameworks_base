@@ -26,6 +26,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
+import com.android.settingslib.R;
 import com.android.settingslib.core.AbstractPreferenceController;
 import com.android.settingslib.core.lifecycle.Lifecycle;
 import com.android.settingslib.core.lifecycle.LifecycleObserver;
@@ -89,7 +90,15 @@ public abstract class AbstractUptimePreferenceController extends AbstractPrefere
     }
 
     private void updateTimes() {
-        mUptime.setSummary(DateUtils.formatElapsedTime(SystemClock.elapsedRealtime() / 1000));
+        final long realtime = SystemClock.elapsedRealtime();
+        final long uptime = SystemClock.uptimeMillis();
+        final float deepSleepTime = Math.max((float) (realtime - uptime), 0f);
+        final int deepSleepPercent = Math.round((deepSleepTime / realtime) * 100f);
+        final String formattedElapsed = DateUtils.formatElapsedTime(realtime / 1000);
+        final String formattedDeepSleep =
+                mContext.getString(R.string.status_deep_sleep, deepSleepPercent, "%");
+        final String summary = formattedElapsed + " " + formattedDeepSleep;
+        mUptime.setSummary(summary);
     }
 
     private static class MyHandler extends Handler {
