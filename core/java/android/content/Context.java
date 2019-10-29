@@ -6945,6 +6945,16 @@ public abstract class Context {
     public static final String LOCALE_SERVICE = "locale";
 
     /**
+     * Use with {@link #getSystemService} to retrieve a
+     * {@link android.os.PocketManager} for accessing and listening to device pocket state.
+     *
+     * @hide
+     * @see #getSystemService
+     * @see android.os.PocketManager
+     */
+    public static final String POCKET_SERVICE = "pocket";
+
+    /**
      * Use with {@link #getSystemService(String)} to retrieve a {@link
      * android.safetycenter.SafetyCenterManager} instance for interacting with the safety center.
      *
