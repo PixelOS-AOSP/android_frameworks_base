@@ -148,8 +148,9 @@
     <bool name="config_dt2sGestureAvailable">false</bool>
     <bool name="config_dt2sGestureEnabledByDefault">false</bool>
 
-    <!-- Default button backlight brightness. -->
+    <!-- Default button and keyboard backlight brightness. -->
     <item name="config_buttonBrightnessSettingDefaultFloat" format="float" type="dimen">1.0</item>
+    <item name="config_keyboardBrightnessSettingDefaultFloat" format="float" type="dimen">1.0</item>
 
     <!-- Array of:
         - Path to fast charging status file
