@@ -73,6 +73,12 @@ constructor(
             interactor.shouldShowFrontCamera = value
         }
 
+    var lowQuality: Boolean
+        get() = interactor.lowQuality
+        set(value) {
+            interactor.lowQuality = value
+        }
+
     var shouldRecordDevice: Boolean
         get() =
             with(interactor) {
