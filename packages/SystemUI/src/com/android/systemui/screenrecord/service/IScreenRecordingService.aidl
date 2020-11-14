@@ -16,7 +16,6 @@
 
 package com.android.systemui.screenrecord.service;
 
-import com.android.systemui.mediaprojection.MediaProjectionCaptureTarget;
 import com.android.systemui.screenrecord.shared.model.ScreenRecordingParameters;
 import com.android.systemui.screenrecord.service.IScreenRecordingServiceCallback;
 

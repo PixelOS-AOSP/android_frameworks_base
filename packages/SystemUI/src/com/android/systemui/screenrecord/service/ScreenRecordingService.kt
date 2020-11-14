@@ -240,6 +240,7 @@ open class ScreenRecordingService : ComponentService() {
                     displayId = parameters.displayId,
                     shouldShowTaps = parameters.shouldShowTaps,
                     shouldShowSeconds = parameters.shouldShowSeconds,
+                    lowQuality = parameters.lowQuality,
                     recorder =
                         ScreenMediaRecorder(
                             this@ScreenRecordingService,
@@ -249,6 +250,7 @@ open class ScreenRecordingService : ComponentService() {
                             parameters.captureTarget,
                             parameters.displayId,
                             screenMediaRecorderListener,
+                            parameters.lowQuality,
                         ),
                 )
             context.startRecording()
@@ -263,6 +265,7 @@ open class ScreenRecordingService : ComponentService() {
         val displayId: Int,
         val shouldShowTaps: Boolean,
         val shouldShowSeconds: Boolean,
+        val lowQuality: Boolean,
         val notificationId: Int,
     )
 

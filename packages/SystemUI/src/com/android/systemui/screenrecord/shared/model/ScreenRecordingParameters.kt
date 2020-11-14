@@ -28,6 +28,7 @@ constructor(
     val audioSource: ScreenRecordingAudioSource,
     val displayId: Int,
     val shouldShowTaps: Boolean,
+    val lowQuality: Boolean = false,
     val shouldShowSeconds: Boolean = false,
     val notificationId: Int = 0,
 ) : Parcelable {
@@ -46,6 +47,7 @@ constructor(
         parcel.readInt(),
         parcel.readBoolean(),
         parcel.readBoolean(),
+        parcel.readBoolean(),
         parcel.readInt(),
     )
 
@@ -57,6 +59,7 @@ constructor(
             writeSerializable(audioSource)
             writeInt(displayId)
             writeBoolean(shouldShowTaps)
+            writeBoolean(lowQuality)
             writeBoolean(shouldShowSeconds)
             writeInt(notificationId)
         }
