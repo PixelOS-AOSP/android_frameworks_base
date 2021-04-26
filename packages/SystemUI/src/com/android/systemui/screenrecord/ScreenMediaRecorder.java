@@ -79,8 +79,8 @@ public class ScreenMediaRecorder {
     private static final int TOTAL_NUM_TRACKS = 1;
     private static final int VIDEO_FRAME_RATE = 30;
     private static final int VIDEO_FRAME_RATE_TO_RESOLUTION_RATIO = 6;
+    private static final int LOW_VIDEO_FRAME_RATE_TO_RESOLUTION_RATIO = 2;
     private static final int LOW_VIDEO_FRAME_RATE = 25;
-    private static final int LOW_VIDEO_BIT_RATE = 1750000;
     private static final int AUDIO_BIT_RATE = 196000;
     private static final int AUDIO_SAMPLE_RATE = 44100;
     private static final int MAX_DURATION_MS = (int) DateUtils.HOUR_IN_MILLIS;
@@ -198,6 +198,9 @@ public class ScreenMediaRecorder {
         }
         VideoParameters videoParameters = getSupportedSize(metrics.widthPixels,
                 metrics.heightPixels, refreshRate);
+        int videoFrameRateToResolutionRatio =
+                mLowQuality ? LOW_VIDEO_FRAME_RATE_TO_RESOLUTION_RATIO
+                : VIDEO_FRAME_RATE_TO_RESOLUTION_RATIO;
         mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
         mMediaRecorder.setVideoEncodingProfileLevel(
                 MediaCodecInfo.CodecProfileLevel.AVCProfileMain,
@@ -206,8 +209,8 @@ public class ScreenMediaRecorder {
                         : getAvcProfileLevelCodeByName(mAvcProfileLevel));
         mMediaRecorder.setVideoSize(videoParameters.mWidth, videoParameters.mHeight);
         mMediaRecorder.setVideoFrameRate(videoParameters.mRefreshRate);
-        mMediaRecorder.setVideoEncodingBitRate(
-                mLowQuality ? LOW_VIDEO_BIT_RATE : videoParameters.bitrate());
+        mMediaRecorder.setVideoEncodingBitRate(videoParameters.bitrate(
+                videoFrameRateToResolutionRatio));
         mMediaRecorder.setMaxDuration(MAX_DURATION_MS);
         mMediaRecorder.setMaxFileSize(MAX_FILESIZE_BYTES);
 
@@ -648,9 +651,9 @@ public class ScreenMediaRecorder {
 
     private record VideoParameters(int mWidth, int mHeight, int mRefreshRate) {
 
-        int bitrate() {
+        int bitrate(int videoFrameRateToResolutionRatio) {
             return mWidth * mHeight * mRefreshRate / VIDEO_FRAME_RATE
-                    * VIDEO_FRAME_RATE_TO_RESOLUTION_RATIO;
+                    * videoFrameRateToResolutionRatio;
         }
     }
 }
