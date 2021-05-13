@@ -73,11 +73,19 @@ constructor(
             interactor.shouldShowFrontCamera = value
         }
 
-    var lowQuality: Boolean
+    val lowQuality: Boolean
         get() = interactor.lowQuality
-        set(value) {
-            interactor.lowQuality = value
-        }
+
+    val longerDuration: Boolean
+        get() = interactor.longerDuration
+
+    fun setLowQuality(lowQuality: Boolean) {
+        interactor.lowQuality = lowQuality
+    }
+
+    fun setLongerDuration(longerDuration: Boolean) {
+        interactor.longerDuration = longerDuration
+    }
 
     var shouldRecordDevice: Boolean
         get() =
