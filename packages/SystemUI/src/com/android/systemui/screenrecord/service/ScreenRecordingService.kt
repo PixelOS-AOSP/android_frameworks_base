@@ -251,6 +251,7 @@ open class ScreenRecordingService : ComponentService() {
                             parameters.displayId,
                             screenMediaRecorderListener,
                             parameters.lowQuality,
+                            parameters.longerDuration,
                         ),
                 )
             context.startRecording()

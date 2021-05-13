@@ -79,6 +79,20 @@ constructor(
             interactor.lowQuality = value
         }
 
+    var longerDuration: Boolean
+        get() = interactor.longerDuration
+        set(value) {
+            interactor.longerDuration = value
+        }
+
+    fun setLowQuality(lowQuality: Boolean) {
+        this.lowQuality = lowQuality
+    }
+
+    fun setLongerDuration(longerDuration: Boolean) {
+        this.longerDuration = longerDuration
+    }
+
     var shouldRecordDevice: Boolean
         get() =
             with(interactor) {
