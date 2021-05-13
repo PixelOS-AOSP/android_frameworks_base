@@ -1016,6 +1016,9 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
         mContext.getContentResolver().registerContentObserver(
                 Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS_FOR_ALS),
                 /* notifyForDescendants= */ false, mSettingsObserver, UserHandle.USER_ALL);
+        mContext.getContentResolver().registerContentObserver(
+                Settings.System.getUriFor(Settings.System.AUTO_BRIGHTNESS_ONE_SHOT),
+                false /*notifyForDescendants*/, mSettingsObserver, UserHandle.USER_ALL);
         handleBrightnessModeChange();
     }
 
@@ -2358,6 +2361,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
     private void handleSettingsChange() {
         mDisplayBrightnessController.handleSettingsChange();
         mAutomaticBrightnessStrategy.updatePendingAutoBrightnessAdjustments();
+        mAutomaticBrightnessStrategy.setAutoBrightnessOneShotEnabled(
+                getAutoBrightnessOneShotSetting());
         sendUpdatePowerState();
     }
 
@@ -2424,6 +2429,12 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
         }
 
         mHandler.postDelayed(() -> validateAmbientLux(latch, deadline), 100L);
+    }
+
+    private boolean getAutoBrightnessOneShotSetting() {
+        return Settings.System.getIntForUser(
+                mContext.getContentResolver(), Settings.System.AUTO_BRIGHTNESS_ONE_SHOT,
+                0, UserHandle.USER_CURRENT) == 1;
     }
 
     public float getScreenBrightnessSetting() {
