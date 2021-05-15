@@ -83,8 +83,15 @@ constructor(
         interactor.lowQuality = lowQuality
     }
 
+    val hevc: Boolean
+        get() = interactor.hevc
+
     fun setLongerDuration(longerDuration: Boolean) {
         interactor.longerDuration = longerDuration
+    }
+
+    fun setHevc(hevc: Boolean) {
+        interactor.hevc = hevc
     }
 
     var shouldRecordDevice: Boolean
