@@ -73,6 +73,7 @@ import android.app.admin.DevicePolicyManagerInternal;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentProvider;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -83,6 +84,7 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
+import android.database.ContentObserver;
 import android.graphics.Region;
 import android.hardware.display.DisplayManagerInternal;
 import android.hardware.input.InputManager;
@@ -173,6 +175,7 @@ import com.android.internal.inputmethod.SoftInputShowHideReason;
 import com.android.internal.inputmethod.StartInputFlags;
 import com.android.internal.inputmethod.StartInputReason;
 import com.android.internal.inputmethod.UnbindReason;
+import com.android.internal.lineage.hardware.LineageHardwareManager;
 import com.android.internal.os.TransferPipe;
 import com.android.internal.protolog.ProtoLog;
 import com.android.internal.util.ArrayUtils;
@@ -201,6 +204,7 @@ import java.lang.annotation.Target;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -394,6 +398,8 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
     @SharedByAllUsersField
     private final UserDataRepository mUserDataRepository;
 
+    @MultiUserUnawareField
+    final SettingsObserver mSettingsObserver;
     final WindowManagerInternal mWindowManagerInternal;
     private final ActivityManagerInternal mActivityManagerInternal;
     final PackageManagerInternal mPackageManagerInternal;
@@ -581,6 +587,65 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
     @GuardedBy("ImfLock.class")
     @SharedByAllUsersField
     private IntArray mStylusIds;
+
+    private LineageHardwareManager mLineageHardware;
+
+    class SettingsObserver extends ContentObserver {
+        /**
+         * <em>This constructor must be called within the lock.</em>
+         */
+        SettingsObserver(Handler handler) {
+            super(handler);
+        }
+
+        void registerContentObserverForAllUsers() {
+            ContentResolver resolver = mContext.getContentResolver();
+            if (mLineageHardware.isSupported(
+                    LineageHardwareManager.FEATURE_HIGH_TOUCH_POLLING_RATE)) {
+                resolver.registerContentObserverAsUser(Settings.System.getUriFor(
+                        Settings.System.HIGH_TOUCH_POLLING_RATE_ENABLE),
+                        false, this, UserHandle.ALL);
+            }
+            if (mLineageHardware.isSupported(
+                    LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY)) {
+                resolver.registerContentObserverAsUser(Settings.System.getUriFor(
+                        Settings.System.HIGH_TOUCH_SENSITIVITY_ENABLE),
+                        false, this, UserHandle.ALL);
+            }
+            if (mLineageHardware.isSupported(LineageHardwareManager.FEATURE_TOUCH_HOVERING)) {
+                resolver.registerContentObserverAsUser(Settings.Secure.getUriFor(
+                        Settings.Secure.FEATURE_TOUCH_HOVERING),
+                        false, this, UserHandle.ALL);
+            }
+        }
+
+        @Override
+        public void onChange(boolean selfChange, @NonNull Collection<Uri> uris, int flags,
+                @UserIdInt int userId) {
+            uris.forEach(uri -> onChangeInternal(uri, userId));
+        }
+
+        private void onChangeInternal(@NonNull Uri uri, @UserIdInt int userId) {
+            final Uri highTouchPollingRateUri = Settings.System.getUriFor(
+                    Settings.System.HIGH_TOUCH_POLLING_RATE_ENABLE);
+            final Uri touchSensitivityUri = Settings.System.getUriFor(
+                    Settings.System.HIGH_TOUCH_SENSITIVITY_ENABLE);
+            final Uri touchHoveringUri = Settings.Secure.getUriFor(
+                    Settings.Secure.FEATURE_TOUCH_HOVERING);
+            synchronized (ImfLock.class) {
+                if (!mConcurrentMultiUserModeEnabled && mCurrentImeUserId != userId) {
+                    return;
+                }
+                if (highTouchPollingRateUri.equals(uri)) {
+                    updateTouchPollingRate();
+                } else if (touchSensitivityUri.equals(uri)) {
+                    updateTouchSensitivity();
+                } else if (touchHoveringUri.equals(uri)) {
+                    updateTouchHovering();
+                }
+            }
+        }
+    }
 
     private final ImeTracing.ServiceDumper mDumper = new ImeTracing.ServiceDumper() {
         /**
@@ -1415,6 +1480,8 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
             mIoHandler = ioHandler;
             SystemLocaleWrapper.onStart(context, this::onActionLocaleChanged, mIoHandler);
             mImeTrackerService = new ImeTrackerService(mHandler);
+            // Note: SettingsObserver doesn't register observers in its constructor.
+            mSettingsObserver = new SettingsObserver(mHandler);
             mWindowManagerInternal = LocalServices.getService(WindowManagerInternal.class);
             mActivityManagerInternal = LocalServices.getService(ActivityManagerInternal.class);
             mPackageManagerInternal = LocalServices.getService(PackageManagerInternal.class);
@@ -1612,6 +1679,10 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
                     newSettings.getEnabledInputMethodList());
         }
 
+        updateTouchHovering();
+        updateTouchPollingRate();
+        updateTouchSensitivity();
+
         ProtoLog.i(IMMS_WITH_LOGCAT, "Switching user stage 3/3. newUserId=%d selectedImeId=%s",
                 newUserId, newSelectedImeId);
 
@@ -1669,6 +1740,14 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
             ProtoLog.v(IMMS_DEBUG, "--- systemReady");
             if (!mSystemReady) {
                 mSystemReady = true;
+
+                // Must happen before registerContentObserverLocked
+                mLineageHardware = LineageHardwareManager.getInstance(mContext);
+
+                updateTouchHovering();
+                updateTouchPollingRate();
+                updateTouchSensitivity();
+
                 mStatusBarManagerInternal =
                         LocalServices.getService(StatusBarManagerInternal.class);
                 hideStatusBarIconLocked(mCurrentImeUserId);
@@ -1677,6 +1756,7 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
                         bindingController.getBackDisposition(), mCurrentImeUserId);
 
                 mMyPackageMonitor.register(mContext, UserHandle.ALL, mIoHandler);
+                mSettingsObserver.registerContentObserverForAllUsers();
                 SecureSettingsChangeCallback.register(mHandler, mContext.getContentResolver(),
                         new String[] {
                                 Settings.Secure.ACCESSIBILITY_SOFT_KEYBOARD_MODE,
@@ -3150,6 +3230,39 @@ public final class InputMethodManagerService implements IInputMethodManagerImpl.
 
         userData.mSwitchingController.update(mContext, settings);
         sendOnNavButtonFlagsChangedLocked(userData);
+    }
+
+    private void updateTouchPollingRate() {
+        if (!mLineageHardware.isSupported(LineageHardwareManager.FEATURE_HIGH_TOUCH_POLLING_RATE)) {
+            return;
+        }
+        // If user is a profile, use preference of its parent profile.
+        final int profileParentUserId = mUserManagerInternal.getProfileParentId(mCurrentImeUserId);
+        final boolean enabled = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.HIGH_TOUCH_POLLING_RATE_ENABLE, 0, profileParentUserId) == 1;
+        mLineageHardware.set(LineageHardwareManager.FEATURE_HIGH_TOUCH_POLLING_RATE, enabled);
+    }
+
+    private void updateTouchSensitivity() {
+        if (!mLineageHardware.isSupported(LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY)) {
+            return;
+        }
+        // If user is a profile, use preference of its parent profile.
+        final int profileParentUserId = mUserManagerInternal.getProfileParentId(mCurrentImeUserId);
+        final boolean enabled = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.HIGH_TOUCH_SENSITIVITY_ENABLE, 0, profileParentUserId) == 1;
+        mLineageHardware.set(LineageHardwareManager.FEATURE_HIGH_TOUCH_SENSITIVITY, enabled);
+    }
+
+    private void updateTouchHovering() {
+        if (!mLineageHardware.isSupported(LineageHardwareManager.FEATURE_TOUCH_HOVERING)) {
+            return;
+        }
+        // If user is a profile, use preference of its parent profile.
+        final int profileParentUserId = mUserManagerInternal.getProfileParentId(mCurrentImeUserId);
+        final boolean enabled = Settings.Secure.getIntForUser(mContext.getContentResolver(),
+                Settings.Secure.FEATURE_TOUCH_HOVERING, 0, profileParentUserId) == 1;
+        mLineageHardware.set(LineageHardwareManager.FEATURE_TOUCH_HOVERING, enabled);
     }
 
     @GuardedBy("ImfLock.class")
