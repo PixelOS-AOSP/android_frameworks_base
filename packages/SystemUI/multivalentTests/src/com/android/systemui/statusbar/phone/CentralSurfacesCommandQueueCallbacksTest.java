@@ -59,6 +59,7 @@ import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.notification.headsup.HeadsUpManager;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController;
 import com.android.systemui.statusbar.policy.DeviceProvisionedController;
+import com.android.systemui.statusbar.policy.FlashlightController;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
 import com.android.systemui.statusbar.policy.RemoteInputQuickSettingsDisabler;
 import com.android.systemui.wallet.controller.QuickAccessWalletController;
@@ -105,6 +106,7 @@ public class CentralSurfacesCommandQueueCallbacksTest extends SysuiTestCase {
     @Mock private UserTracker mUserTracker;
     @Mock private QSHost mQSHost;
     @Mock private ActivityStarter mActivityStarter;
+    @Mock private FlashlightController mFlashlightController;
     @Mock private EmergencyGestureIntentFactory mEmergencyGestureIntentFactory;
     @Mock private KeyguardInteractor mKeyguardInteractor;
     @Mock private QuickAccessWalletController mQuickAccessWalletController;
@@ -147,6 +149,7 @@ public class CentralSurfacesCommandQueueCallbacksTest extends SysuiTestCase {
                 mQSHost,
                 mActivityStarter,
                 mKeyguardInteractor,
+                mFlashlightController,
                 mEmergencyGestureIntentFactory,
                 mQuickAccessWalletController);
 
