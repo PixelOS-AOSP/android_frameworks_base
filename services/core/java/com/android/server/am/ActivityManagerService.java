@@ -21213,6 +21213,11 @@ public class ActivityManagerService extends IActivityManager.Stub
         r.getWindowProcessController().setOptimizationInfo(compilerFilter, compilationReason);
     }
 
+    @Override
+    public boolean shouldForceCutoutFullscreen(String packageName) {
+        return mActivityTaskManager.shouldForceCutoutFullscreen(packageName);
+    }
+
     // uid indexed collection of lists of ANR warning callback.
     @GuardedBy("mAnrWarningCallbacks")
     private final SparseArray<List<IAnrWarningCallback>> mAnrWarningCallbacks = new SparseArray<>();
