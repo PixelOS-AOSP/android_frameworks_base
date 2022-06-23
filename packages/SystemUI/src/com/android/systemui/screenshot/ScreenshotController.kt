@@ -38,6 +38,7 @@ import android.view.Display
 import android.view.ScrollCaptureResponse
 import android.view.ViewRootImpl.ActivityConfigCallback
 import android.view.WindowManager.TAKE_SCREENSHOT_PROVIDED_IMAGE
+import android.view.WindowManager.TAKE_SCREENSHOT_SELECTED_REGION
 import android.widget.Toast
 import android.window.WindowContext
 import androidx.core.animation.doOnEnd
@@ -49,6 +50,7 @@ import com.android.systemui.clipboardoverlay.ClipboardOverlayController
 import com.android.systemui.dagger.qualifiers.Main
 import com.android.systemui.res.R
 import com.android.systemui.screenshot.ScreenshotShelfViewProxy.ScreenshotViewCallback
+import com.android.systemui.screenshot.scroll.ScrollCaptureController.BitmapScreenshot
 import com.android.systemui.screenshot.scroll.ScrollCaptureController.LongScreenshot
 import com.android.systemui.screenshot.scroll.ScrollCaptureExecutor
 import com.android.systemui.util.Assert
@@ -170,6 +172,23 @@ internal constructor(
             info.loadLabel(packageManager).toString()
         }.getOrDefault("")
         scrollCaptureExecutor.longScreenshotHolder.foregroundAppName = packageLabel
+
+        if (screenshot.type == TAKE_SCREENSHOT_SELECTED_REGION) {
+            val currentBitmap =
+                screenshot.bitmap ?: imageCapture.captureDisplay(display.displayId, null)
+            if (currentBitmap == null) {
+                Log.e(TAG, "handleScreenshot: Screenshot bitmap was null")
+                notificationController.notifyScreenshotError(
+                    R.string.screenshot_failed_to_capture_text
+                )
+                requestCallback.reportError()
+                return
+            }
+            startPartialScreenshotActivity(screenshot.userHandle, currentBitmap)
+            finisher.accept(null)
+            requestCallback.onFinish()
+            return
+        }
 
         val currentBitmap = screenshot.bitmap
         if (currentBitmap == null) {
@@ -398,6 +417,21 @@ internal constructor(
                 onScrollButtonClicked(owner, response, uri)
             }
         }
+    }
+
+    private fun startPartialScreenshotActivity(owner: UserHandle, bitmap: Bitmap) {
+        scrollCaptureExecutor.executeBatchScrollCapture(
+            BitmapScreenshot(context, bitmap),
+            {
+                val intent = actionIntentCreator.createLongScreenshotIntent(owner, Uri.EMPTY)
+                val options = ActivityOptions.makeBasic()
+                options.setLaunchDisplayId(context.displayId)
+                context.startActivity(intent, options.toBundle())
+            },
+            { _: Rect, onTransitionEnd: Runnable, _: LongScreenshot ->
+                onTransitionEnd.run()
+            },
+        )
     }
 
     private fun onScrollButtonClicked(
