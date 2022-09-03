@@ -107,4 +107,7 @@
     <!-- Define device configs on boot -->
     <java-symbol type="array" name="global_device_configs_override" />
     <java-symbol type="array" name="device_configs_override" />
+
+    <!-- Cycle through ringer modes -->
+    <java-symbol type="string" name="volume_dialog_ringer_guidance_normal" />
 </resources>
