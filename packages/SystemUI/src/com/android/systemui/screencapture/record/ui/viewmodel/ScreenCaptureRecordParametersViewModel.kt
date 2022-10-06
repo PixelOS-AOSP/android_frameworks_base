@@ -85,6 +85,12 @@ constructor(
             interactor.longerDuration = value
         }
 
+    var hevc: Boolean
+        get() = interactor.hevc
+        set(value) {
+            interactor.hevc = value
+        }
+
     var shouldRecordDevice: Boolean
         get() =
             with(interactor) {

@@ -242,6 +242,7 @@ open class ScreenRecordingService : ComponentService() {
                     shouldShowSeconds = parameters.shouldShowSeconds,
                     lowQuality = parameters.lowQuality,
                     longerDuration = parameters.longerDuration,
+                    hevc = parameters.hevc,
                     recorder =
                         ScreenMediaRecorder(
                             this@ScreenRecordingService,
@@ -253,6 +254,7 @@ open class ScreenRecordingService : ComponentService() {
                             screenMediaRecorderListener,
                             parameters.lowQuality,
                             parameters.longerDuration,
+                            parameters.hevc,
                         ),
                 )
             context.startRecording()
@@ -269,6 +271,7 @@ open class ScreenRecordingService : ComponentService() {
         val shouldShowSeconds: Boolean,
         val lowQuality: Boolean,
         val longerDuration: Boolean,
+        val hevc: Boolean,
         val notificationId: Int,
     )
 
