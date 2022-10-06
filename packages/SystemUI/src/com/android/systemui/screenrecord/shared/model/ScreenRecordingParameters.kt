@@ -30,6 +30,7 @@ constructor(
     val shouldShowTaps: Boolean,
     val lowQuality: Boolean = false,
     val longerDuration: Boolean = false,
+    val hevc: Boolean = false,
     val shouldShowSeconds: Boolean = false,
     val notificationId: Int = 0,
 ) : Parcelable {
@@ -50,6 +51,7 @@ constructor(
         parcel.readBoolean(),
         parcel.readBoolean(),
         parcel.readBoolean(),
+        parcel.readBoolean(),
         parcel.readInt(),
     )
 
@@ -63,6 +65,7 @@ constructor(
             writeBoolean(shouldShowTaps)
             writeBoolean(lowQuality)
             writeBoolean(longerDuration)
+            writeBoolean(hevc)
             writeBoolean(shouldShowSeconds)
             writeInt(notificationId)
         }
