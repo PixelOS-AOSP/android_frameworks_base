@@ -119,7 +119,7 @@ class PulseDisabledSuppressor(
     private val userTracker: UserTracker,
 ) : VisualInterruptionCondition(types = setOf(PULSE), reason = "pulse disabled by user setting") {
     override fun shouldSuppress(): Boolean =
-        !ambientDisplayConfiguration.pulseOnNotificationEnabled(userTracker.userId)
+        !ambientDisplayConfiguration.userPulseOnNotificationEnabled(userTracker.userId)
 }
 
 class PulseBatterySaverSuppressor(private val batteryController: BatteryController) :

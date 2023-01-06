@@ -8,6 +8,8 @@ class FakeAmbientDisplayConfiguration(context: Context) : AmbientDisplayConfigur
 
     override fun pulseOnNotificationEnabled(user: Int) = fakePulseOnNotificationEnabled
 
+    override fun userPulseOnNotificationEnabled(user: Int) = fakePulseOnNotificationEnabled
+
     override fun pulseOnNotificationAvailable() = TODO("Not yet implemented")
 
     override fun pickupGestureEnabled(user: Int) = fakePickupGestureEnabled

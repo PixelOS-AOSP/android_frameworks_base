@@ -211,7 +211,7 @@ public class DozeTriggersTest extends SysuiTestCase {
         mTriggers.transitionTo(DozeMachine.State.INITIALIZED, DozeMachine.State.DOZE);
         clearInvocations(mMachine);
         // AND pulsing is disabled
-        when(mConfig.pulseOnNotificationEnabled(anyInt())).thenReturn(false);
+        when(mConfig.userPulseOnNotificationEnabled(anyInt())).thenReturn(false);
 
         // WHEN receive an alerting notification
         mHostCallbackCaptor.getValue().onNotificationAlerted(pulseSuppressListener);

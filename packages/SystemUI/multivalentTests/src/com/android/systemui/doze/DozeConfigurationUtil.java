@@ -55,6 +55,7 @@ public class DozeConfigurationUtil {
         when(config.doubleTapGestureEnabled(anyInt())).thenReturn(false);
         when(config.pickupGestureEnabled(anyInt())).thenReturn(false);
         when(config.pulseOnNotificationEnabled(anyInt())).thenReturn(true);
+        when(config.userPulseOnNotificationEnabled(anyInt())).thenReturn(true);
         when(config.alwaysOnEnabled(anyInt())).thenReturn(false);
         when(config.dozeSuppressed(anyInt())).thenReturn(false);
         when(config.enabled(anyInt())).thenReturn(true);
