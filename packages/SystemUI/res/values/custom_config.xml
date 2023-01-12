@@ -82,4 +82,7 @@
 
     <!-- Allow devices override audio panel location to the left side -->
     <bool name="config_audioPanelOnLeftSide">false</bool>
+
+    <!-- Update battery info every second when device is charging -->
+    <bool name="config_alternateFastchargeInfoUpdate">false</bool>
 </resources>
