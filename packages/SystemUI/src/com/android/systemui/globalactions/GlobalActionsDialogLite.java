@@ -61,6 +61,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.SystemProperties;
@@ -203,6 +204,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     private static final String GLOBAL_ACTION_KEY_RESTART_BOOTLOADER = "restart_bootloader";
     private static final String GLOBAL_ACTION_KEY_RESTART_DOWNLOAD = "restart_download";
     private static final String GLOBAL_ACTION_KEY_RESTART_FASTBOOT = "restart_fastboot";
+    private static final String GLOBAL_ACTION_KEY_RESTART_SYSTEMUI = "restart_systemui";
 
     // See NotificationManagerService#scheduleDurationReachedLocked
     private static final long TOAST_FADE_TIME = 333;
@@ -716,6 +718,7 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         RestartBootloaderAction blAction = new RestartBootloaderAction();
         RestartDownloadAction dlAction = new RestartDownloadAction();
         RestartFastbootAction fbAction = new RestartFastbootAction();
+        RestartSystemUIAction sysuiAction = new RestartSystemUIAction();
         ArrayList<String> addedRestartKeys = new ArrayList<>();
         List<Action> tempActions = new ArrayList<>();
         CurrentUserProvider currentUser = new CurrentUserProvider();
@@ -823,6 +826,8 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 addIfShouldShowAction(mRestartItems, dlAction);
             } else if (GLOBAL_ACTION_KEY_RESTART_FASTBOOT.equals(actionKey)) {
                 addIfShouldShowAction(mRestartItems, fbAction);
+            } else if (GLOBAL_ACTION_KEY_RESTART_SYSTEMUI.equals(actionKey)) {
+                addIfShouldShowAction(mRestartItems, sysuiAction);
             }
             // Add here so we don't add more than one.
             addedRestartKeys.add(actionKey);
@@ -1299,6 +1304,31 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         @Override
         public void onPress() {
             mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_DOWNLOAD);
+        }
+    }
+
+    private final class RestartSystemUIAction extends SinglePressAction {
+        private RestartSystemUIAction() {
+            super(com.android.systemui.res.R.drawable.ic_restart_systemui,
+                    com.android.systemui.res.R.string.global_action_restart_systemui);
+        }
+
+        @Override
+        public boolean showDuringKeyguard() {
+            return true;
+        }
+
+        @Override
+        public boolean showBeforeProvisioning() {
+            return true;
+        }
+
+        @Override
+        public void onPress() {
+            // Tell policy the dialog is hidden before SystemUI dies, otherwise the reconnect path
+            // can show LegacyGlobalActions after SystemUI restarts.
+            mWindowManagerFuncs.onGlobalActionsHidden();
+            Process.killProcess(Process.myPid());
         }
     }
 
