@@ -337,6 +337,7 @@ public class SecureSettings {
         Settings.Secure.IDENTITY_CHECK_PROMO_CARD_SHOWN,
         Settings.Secure.IDENTITY_CHECK_NOTIFICATION_VIEW_DETAILS_CLICKED,
         Settings.Secure.NOTIFICATION_BUNDLES_ALWAYS_EXPAND,
+        Settings.Secure.DOZE_TAP_GESTURE_AMBIENT,
         Settings.Secure.ACCESSIBILITY_TOP_ROW_KEY_TARGETS,
         Settings.Secure.ACCESSIBILITY_QUICK_ACCESS_TARGETS,
         Settings.Secure.NAVIGATIONBAR_KEY_ORDER,
@@ -348,6 +349,6 @@ public class SecureSettings {
         Settings.Secure.PERSONAL_CONTEXT_MODE_ENABLED_DEFAULT,
         Settings.Secure.LIGHT_ANIMATION_FAVORITE_CALLS_ENABLED,
         Settings.Secure.IME_SWITCHER_BUTTON_IN_NAVBAR_ENABLED,
-        Settings.Secure.RAISE_TRIGGER_DEFAULT_ASSISTANT,
+        Settings.Secure.RAISE_TRIGGER_DEFAULT_ASSISTANT
     };
 }
