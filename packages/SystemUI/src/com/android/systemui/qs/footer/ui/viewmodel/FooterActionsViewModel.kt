@@ -17,6 +17,8 @@
 package com.android.systemui.qs.footer.ui.viewmodel
 
 import android.content.Context
+import android.os.UserHandle
+import android.provider.Settings
 import android.util.Log
 import android.view.ContextThemeWrapper
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -45,6 +47,7 @@ import com.android.systemui.qs.panels.ui.viewmodel.TextFeedbackContentViewModel.
 import com.android.systemui.qs.panels.ui.viewmodel.TextFeedbackViewModel
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
+import com.android.systemui.statusbar.policy.KeyguardStateController
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import com.android.systemui.util.icuMessageFormat
 import javax.inject.Inject
@@ -130,6 +133,7 @@ class FooterActionsViewModel(
         private val textFeedbackInteractor: TextFeedbackInteractor,
         private val selectedUserInteractor: SelectedUserInteractor,
         @Named(PM_LITE_ENABLED) private val showPowerButton: Boolean,
+        private val keyguardStateController: KeyguardStateController
     ) {
         /** Create a [FooterActionsViewModel] bound to the lifecycle of [lifecycleOwner]. */
         fun create(lifecycleOwner: LifecycleOwner): FooterActionsViewModel {
@@ -158,6 +162,7 @@ class FooterActionsViewModel(
                 activityStarter,
                 showPowerButton,
                 selectedUserInteractor,
+                keyguardStateController,
             )
         }
 
@@ -184,6 +189,7 @@ class FooterActionsViewModel(
                 activityStarter,
                 showPowerButton,
                 selectedUserInteractor,
+                keyguardStateController,
             )
         }
     }
@@ -198,6 +204,7 @@ fun createFooterActionsViewModel(
     activityStarter: ActivityStarter,
     showPowerButton: Boolean,
     selectedUserInteractor: SelectedUserInteractor,
+    keyguardStateController: KeyguardStateController,
 ): FooterActionsViewModel {
     suspend fun observeDeviceMonitoringDialogRequests(quickSettingsContext: Context) {
         footerActionsInteractor.deviceMonitoringDialogRequests.collect {
@@ -248,6 +255,20 @@ fun createFooterActionsViewModel(
     }
 
     fun onPowerButtonClicked(expandable: Expandable) {
+        val powerMenuDisabledOnLockscreen =
+            Settings.System.getIntForUser(
+                appContext.contentResolver,
+                Settings.System.LOCKSCREEN_ENABLE_POWER_MENU,
+                1,
+                UserHandle.USER_CURRENT,
+            ) == 0
+        if (
+            keyguardStateController.isShowing &&
+                keyguardStateController.isMethodSecure &&
+                powerMenuDisabledOnLockscreen
+        ) {
+            return
+        }
         if (falsingManager.isFalseTap(FalsingManager.LOW_PENALTY)) {
             return
         }
