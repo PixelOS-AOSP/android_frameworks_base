@@ -91,4 +91,7 @@
     <string name="qs_data_switch_sim_label">SIM %d</string>
     <string name="qs_data_switch_sim_desc">SIM %d is the preferred mobile data SIM</string>
     <string name="qs_data_switch_sim_transient">Switching\u2026</string>
+
+    <!-- Face unlock -->
+    <string name="face_unlock_recognizing">Recognizing face...</string>
 </resources>
