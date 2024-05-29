@@ -115,4 +115,6 @@ interface ILockSettings {
     void unlockUserKeyIfUnsecured(int userId);
     boolean writeRepairModeCredential(int userId);
     byte getLockPatternSize(int userId);
+    void setDuressCredentials(in LockscreenCredential ownerCredential, in LockscreenCredential duressPin, in LockscreenCredential duressPassword);
+    boolean hasDuressCredentials(in LockscreenCredential ownerCredential);
 }
