@@ -17,6 +17,7 @@ package com.android.systemui.display.ui.viewmodel
 
 import android.app.Dialog
 import android.content.Context
+import android.os.SystemProperties
 import android.provider.Settings.Secure.MIRROR_BUILT_IN_DISPLAY
 import android.util.Log
 import android.view.Display.DEFAULT_DISPLAY
@@ -138,8 +139,14 @@ constructor(
         isDesktopModeSupported: Boolean,
         isInKioskMode: Boolean,
     ) {
-        var saveChoice = false
         dismissDialog()
+
+        if (SystemProperties.getBoolean(DISABLE_MIRRORING_CONFIRMATION_DIALOG, false)) {
+            enableFor(MIRROR, saveChoice = false)
+            return
+        }
+
+        var saveChoice = false
 
         if (Flags.enableComposeExternalDisplayDialog()) {
             dialog =
@@ -315,5 +322,7 @@ constructor(
 
     private companion object {
         const val TAG: String = "ConnectingDisplayViewModel"
+        private const val DISABLE_MIRRORING_CONFIRMATION_DIALOG =
+            "persist.sysui.disable_mirroring_confirmation_dialog"
     }
 }
