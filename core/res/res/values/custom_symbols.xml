@@ -15,6 +15,13 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- PixelPropsUtils -->
+    <java-symbol type="string" name="cert_device" />
+    <java-symbol type="string" name="cert_fp" />
+    <java-symbol type="string" name="cert_model" />
+    <java-symbol type="string" name="cert_sdk" />
+    <java-symbol type="string" name="cert_manufacturer" />
+
     <!-- Device keyhandlers -->
     <java-symbol type="array" name="config_deviceKeyHandlerLibs" />
     <java-symbol type="array" name="config_deviceKeyHandlerClasses" />
