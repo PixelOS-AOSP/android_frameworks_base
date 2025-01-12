@@ -7,6 +7,7 @@ package com.android.server.lineage.health;
 
 import static com.android.server.lineage.health.Util.msToString;
 
+import android.app.ActivityOptions;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -117,10 +118,14 @@ public class ChargingControlNotification {
                     limit);
         }
 
+        ActivityOptions activityOptions = ActivityOptions.makeBasic();
+        activityOptions.setPendingIntentCreatorBackgroundActivityStartMode(
+                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+
         Intent mainIntent = new Intent(INTENT_PARTS);
         mainIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent mainPendingIntent = PendingIntent.getActivity(mContext, 0, mainIntent,
-                PendingIntent.FLAG_IMMUTABLE);
+                PendingIntent.FLAG_IMMUTABLE, activityOptions.toBundle());
 
         Intent cancelOnceIntent = new Intent(ACTION_CHARGING_CONTROL_CANCEL_ONCE);
         PendingIntent cancelPendingIntent = PendingIntent.getBroadcast(mContext, 0,
