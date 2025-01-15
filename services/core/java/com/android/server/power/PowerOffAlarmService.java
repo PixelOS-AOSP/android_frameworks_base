@@ -50,14 +50,14 @@ public class PowerOffAlarmService extends SystemService {
     private static final String ALARM_PACKAGE = "com.qualcomm.qti.poweroffalarm";
 
     private final Context mContext;
-    private final AlarmManager mAlarmManager;
+    private AlarmManager mAlarmManager;
     private SharedPreferences mSharedPreferences;
     private boolean mIsAvailable = false;
+    private boolean mSystemReady = false;
 
     public PowerOffAlarmService(Context context) {
         super(context);
         mContext = context;
-        mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
     }
 
     @Override
@@ -89,12 +89,17 @@ public class PowerOffAlarmService extends SystemService {
         if (phase != SystemService.PHASE_BOOT_COMPLETED || !mIsAvailable)
             return;
         Slog.v(TAG, "onBootPhase PHASE_BOOT_COMPLETED");
+        mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
+        mSystemReady = true;
         updateAlarms(mAlarmManager);
     }
 
     private final BroadcastReceiver mAlarmChangedReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (!mSystemReady) {
+                return;
+            }
             Slog.v(TAG, "mAlarmChangedReceiver onReceive");
             updateAlarms(mAlarmManager);
         }
