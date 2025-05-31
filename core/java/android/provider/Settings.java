@@ -13950,6 +13950,13 @@ public final class Settings {
                 "com.android.server.display.HBM_SETTING_KEY";
 
         /**
+         * User selectable keybox data.
+         * @hide
+         */
+        @Readable
+        public static final String KEYBOX_DATA = "keybox_data";
+
+        /**
          * Whether to use black theme for dark mode
          * @hide
          */

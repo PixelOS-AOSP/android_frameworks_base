@@ -19,6 +19,7 @@ package android.security;
 import android.annotation.NonNull;
 import android.app.compat.CompatChanges;
 import android.hardware.security.keymint.KeyParameter;
+import android.hardware.security.keymint.Tag;
 import android.os.Binder;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -32,6 +33,8 @@ import android.system.keystore2.KeyDescriptor;
 import android.system.keystore2.KeyMetadata;
 import android.system.keystore2.ResponseCode;
 import android.util.Log;
+
+import com.android.internal.util.yaap.KeyboxImitationHooks;
 
 import java.util.Calendar;
 import java.util.Collection;
@@ -165,6 +168,24 @@ public class KeyStoreSecurityLevel {
             Collection<KeyParameter> args, int flags, byte[] entropy)
             throws KeyStoreException {
         StrictMode.noteDiskWrite();
+
+        byte[] attestationChallenge = null;
+        for (KeyParameter kp : args) {
+            if (kp.tag == Tag.ATTESTATION_CHALLENGE) {
+                attestationChallenge = kp.value.getBlob();
+                break;
+            }
+        }
+
+        KeyboxImitationHooks.setSuccessFlag(false);
+        if (attestationChallenge != null && attestationKey == null) {
+            KeyMetadata metadata = KeyboxImitationHooks.generateKey(mSecurityLevel,
+                    descriptor, args);
+            if (metadata != null) {
+                return metadata;
+            }
+        }
+
         return retryBusyException(() -> mSecurityLevel.generateKey(
                 descriptor, attestationKey, args.toArray(new KeyParameter[args.size()]),
                 flags, entropy));
