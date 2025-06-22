@@ -58,6 +58,7 @@ import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.SceneInteractor
 import com.android.systemui.scene.shared.flag.SceneContainerFlag
 import com.android.systemui.scene.shared.model.Scenes
+import com.android.systemui.brightness.domain.interactor.BrightnessMirrorShowingInteractor
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.statusbar.policy.KeyguardStateController
 import dagger.Lazy
@@ -96,6 +97,7 @@ constructor(
     private val shadeInteractor: ShadeInteractor,
     private val udfpsOverlayInteractor: UdfpsOverlayInteractor,
     private val powerInteractor: PowerInteractor,
+    private val brightnessMirrorShowingInteractor: BrightnessMirrorShowingInteractor,
     @Application private val scope: CoroutineScope,
     sceneInteractor: Lazy<SceneInteractor>,
 ) {
@@ -144,7 +146,8 @@ constructor(
     )
 
     private val udfpsHelper: UdfpsHelper? = if (useFrameworkDimming) {
-        UdfpsHelper(context, windowManager, shadeInteractor, requestReason)
+        UdfpsHelper(context, windowManager, shadeInteractor, requestReason,
+                brightnessMirrorShowingInteractor)
     } else {
         null
     }

@@ -102,6 +102,7 @@ import com.android.systemui.plugins.FalsingManager;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.power.domain.interactor.PowerInteractor;
 import com.android.systemui.scene.domain.interactor.SceneInteractor;
+import com.android.systemui.brightness.domain.interactor.BrightnessMirrorShowingInteractor;
 import com.android.systemui.shade.domain.interactor.ShadeInteractor;
 import com.android.systemui.shared.system.SysUiStatsLog;
 import com.android.systemui.statusbar.VibratorHelper;
@@ -187,6 +188,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
     @NonNull private final AlternateBouncerInteractor mAlternateBouncerInteractor;
     @NonNull private final UdfpsOverlayInteractor mUdfpsOverlayInteractor;
     @NonNull private final PowerInteractor mPowerInteractor;
+    @NonNull private final BrightnessMirrorShowingInteractor mBrightnessMirrorShowingInteractor;
     @NonNull private final CoroutineScope mScope;
     @NonNull private final InputManager mInputManager;
     @NonNull private final SelectedUserInteractor mSelectedUserInteractor;
@@ -324,6 +326,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
                         mShadeInteractor,
                         mUdfpsOverlayInteractor,
                         mPowerInteractor,
+                        mBrightnessMirrorShowingInteractor,
                         mScope,
                         mSceneInteractorLazy
                     )));
@@ -722,6 +725,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
             Lazy<PromptUdfpsTouchOverlayViewModel> promptUdfpsTouchOverlayViewModel,
             @NonNull UdfpsOverlayInteractor udfpsOverlayInteractor,
             @NonNull PowerInteractor powerInteractor,
+            @NonNull BrightnessMirrorShowingInteractor brightnessMirrorShowingInteractor,
             @Application CoroutineScope scope,
             UserActivityNotifier userActivityNotifier,
             Lazy<WakefulnessLifecycle> wakefulnessLifecycle,
@@ -768,6 +772,7 @@ public class UdfpsController implements DozeReceiver, Dumpable {
         mAlternateBouncerInteractor = alternateBouncerInteractor;
         mUdfpsOverlayInteractor = udfpsOverlayInteractor;
         mPowerInteractor = powerInteractor;
+        mBrightnessMirrorShowingInteractor = brightnessMirrorShowingInteractor;
         mScope = scope;
         mInputManager = inputManager;
         mSelectedUserInteractor = selectedUserInteractor;
