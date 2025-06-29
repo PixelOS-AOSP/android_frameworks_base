@@ -41,12 +41,8 @@ abstract class SettingsBasePreferenceFragment : PreferenceFragmentCompat() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
-        return super.onCreateView(inflater, container, savedInstanceState)
-    }
+        val view = super.onCreateView(inflater, container, savedInstanceState)
 
-    @CallSuper
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
         if (SettingsThemeHelper.isExpressiveTheme(requireContext())) {
             // This null check is to fix b/412578060 on our side;
             // If this will be resolved in the future in PreferenceFragmentCompat this can be removed
@@ -93,6 +89,12 @@ abstract class SettingsBasePreferenceFragment : PreferenceFragmentCompat() {
                 recursiveInitializePreferences(preference)
             }
         }
+        return view
+    }
+
+    @CallSuper
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
     }
 
     override fun onCreateAdapter(preferenceScreen: PreferenceScreen): RecyclerView.Adapter<*> {
