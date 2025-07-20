@@ -60,9 +60,7 @@ constructor(
      * @see DevelopmentSettingRepository.isDevelopmentSettingEnabled
      */
     val buildNumber: StateFlow<BuildNumber?> =
-        userRepository.selectedUserInfo
-            .flatMapConcat { userInfo -> repository.isDevelopmentSettingEnabled(userInfo) }
-            .map { enabled -> buildText.takeIf { enabled } }
+        kotlinx.coroutines.flow.flowOf(null)
             .stateIn(applicationScope, WhileSubscribed(), null)
 
     // Special indicator for FG.
