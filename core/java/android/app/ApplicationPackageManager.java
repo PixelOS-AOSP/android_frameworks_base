@@ -143,6 +143,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.ApplicationSharedMemory;
 import com.android.internal.os.SomeArgs;
 import com.android.internal.pm.RoSystemFeatures;
+import com.android.internal.util.PropImitationHooks;
 import com.android.internal.util.UserIcons;
 
 import dalvik.system.VMRuntime;
@@ -858,7 +859,8 @@ public class ApplicationPackageManager extends PackageManager {
                 return maybeHasSystemFeature;
             }
         }
-        return mHasSystemFeatureCache.query(new HasSystemFeatureQuery(name, version));
+        return PropImitationHooks.hasSystemFeature(name,
+                mHasSystemFeatureCache.query(new HasSystemFeatureQuery(name, version)));
     }
 
     /** @hide */
