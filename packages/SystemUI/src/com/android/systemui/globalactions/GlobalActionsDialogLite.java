@@ -203,7 +203,6 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
     private static final String GLOBAL_ACTION_KEY_RESTART_RECOVERY = "restart_recovery";
     private static final String GLOBAL_ACTION_KEY_RESTART_BOOTLOADER = "restart_bootloader";
     private static final String GLOBAL_ACTION_KEY_RESTART_DOWNLOAD = "restart_download";
-    private static final String GLOBAL_ACTION_KEY_RESTART_FASTBOOT = "restart_fastboot";
     private static final String GLOBAL_ACTION_KEY_RESTART_SYSTEMUI = "restart_systemui";
 
     // See NotificationManagerService#scheduleDurationReachedLocked
@@ -717,7 +716,6 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         RestartRecoveryAction recAction = new RestartRecoveryAction();
         RestartBootloaderAction blAction = new RestartBootloaderAction();
         RestartDownloadAction dlAction = new RestartDownloadAction();
-        RestartFastbootAction fbAction = new RestartFastbootAction();
         RestartSystemUIAction sysuiAction = new RestartSystemUIAction();
         ArrayList<String> addedRestartKeys = new ArrayList<>();
         List<Action> tempActions = new ArrayList<>();
@@ -824,8 +822,6 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
                 addIfShouldShowAction(mRestartItems, blAction);
             } else if (GLOBAL_ACTION_KEY_RESTART_DOWNLOAD.equals(actionKey)) {
                 addIfShouldShowAction(mRestartItems, dlAction);
-            } else if (GLOBAL_ACTION_KEY_RESTART_FASTBOOT.equals(actionKey)) {
-                addIfShouldShowAction(mRestartItems, fbAction);
             } else if (GLOBAL_ACTION_KEY_RESTART_SYSTEMUI.equals(actionKey)) {
                 addIfShouldShowAction(mRestartItems, sysuiAction);
             }
@@ -1260,28 +1256,6 @@ public class GlobalActionsDialogLite implements DialogInterface.OnDismissListene
         @Override
         public void onPress() {
             mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_BOOTLOADER);
-        }
-    }
-
-    private final class RestartFastbootAction extends SinglePressAction {
-        private RestartFastbootAction() {
-            super(com.android.systemui.res.R.drawable.ic_lock_restart_fastboot,
-                    com.android.systemui.res.R.string.global_action_restart_fastboot);
-        }
-
-        @Override
-        public boolean showDuringKeyguard() {
-            return true;
-        }
-
-        @Override
-        public boolean showBeforeProvisioning() {
-            return true;
-        }
-
-        @Override
-        public void onPress() {
-            mWindowManagerFuncs.reboot(false, PowerManager.REBOOT_FASTBOOT);
         }
     }
 
