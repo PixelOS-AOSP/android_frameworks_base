@@ -169,8 +169,6 @@ public class ShutdownUi {
             return com.android.systemui.res.R.string.global_action_restart_bootloader_progress;
         } else if (reason != null && reason.equals(PowerManager.REBOOT_DOWNLOAD)) {
             return com.android.systemui.res.R.string.global_action_restart_download_progress;
-        } else if (reason != null && reason.equals(PowerManager.REBOOT_FASTBOOT)) {
-            return com.android.systemui.res.R.string.global_action_restart_fastboot_progress;
         } else if (isReboot) {
             return com.android.systemui.res.R.string.global_action_restart_progress;
         } else {
