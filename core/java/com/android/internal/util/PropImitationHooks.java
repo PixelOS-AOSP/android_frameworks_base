@@ -110,7 +110,9 @@ public class PropImitationHooks {
         "PIXEL_2023_EXPERIENCE",
         "PIXEL_2023_MIDYEAR_EXPERIENCE",
         "PIXEL_2024_EXPERIENCE",
-        "PIXEL_2024_MIDYEAR_EXPERIENCE"
+        "PIXEL_2024_MIDYEAR_EXPERIENCE",
+        "PIXEL_2025_EXPERIENCE",
+        "PIXEL_2025_MIDYEAR_EXPERIENCE"
     );
 
     private static volatile List<String> sCertifiedProps = new ArrayList<>();
