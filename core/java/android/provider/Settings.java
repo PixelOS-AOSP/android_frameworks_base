@@ -13225,6 +13225,12 @@ public final class Settings {
         public static final String VOLUME_DIALOG_DISMISS_TIMEOUT = "volume_dialog_dismiss_timeout";
 
         /**
+         * Whether the volume panel should be shown on the left side of the screen.
+         * @hide
+         */
+        public static final String VOLUME_PANEL_ON_LEFT = "volume_panel_on_left";
+
+        /**
          * What behavior should be invoked when the volume hush gesture is triggered
          * One of VOLUME_HUSH_OFF, VOLUME_HUSH_VIBRATE, VOLUME_HUSH_MUTE, VOLUME_HUSH_CYCLE.
          *
