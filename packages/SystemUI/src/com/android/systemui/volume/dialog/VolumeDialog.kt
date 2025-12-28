@@ -18,13 +18,7 @@ package com.android.systemui.volume.dialog
 
 import android.content.res.Configuration
 import android.content.Context
-import android.database.ContentObserver
-import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.UserHandle
-import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -56,41 +50,13 @@ constructor(
     // Use horizontal volume dialog if the audio tile details view is enabled
     private val isVolumeDialogVertical = !desktopAudioTileDetailsFeatureInteractor.isEnabled()
 
-    private val onLeftDefault: Boolean = context.resources.getBoolean(
-        R.bool.config_audioPanelOnLeftSide);
-    private var volumePanelOnLeft: Boolean = false
-    private var volumePanelOnLeftLand: Boolean = false
-
-    private val volumePanelOnLeftObserver =
-    object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) {
-            val onLeft =
-                Settings.System.getIntForUser(
-                    context.contentResolver,
-                    Settings.System.VOLUME_PANEL_ON_LEFT,
-                    if (onLeftDefault) 1 else 0,
-                    UserHandle.USER_CURRENT
-                ) != 0
-            val onLeftLand =
-                Settings.System.getIntForUser(
-                    context.contentResolver,
-                    Settings.System.VOLUME_PANEL_ON_LEFT_LAND,
-                    if (onLeftDefault) 1 else 0,
-                    UserHandle.USER_CURRENT
-                ) != 0
-            if (volumePanelOnLeft != onLeft || volumePanelOnLeftLand != onLeftLand) {
-                volumePanelOnLeft = onLeft
-                volumePanelOnLeftLand = onLeftLand
-                applyLayoutAndGravity()
-            }
-        }
-    }
+    private val volumePanelOnLeft: Boolean =
+        context.resources.getBoolean(R.bool.config_audioPanelOnLeftSide)
 
     private fun applyLayoutAndGravity() {
         val win = window ?: return
         val dialogView = win.decorView
-        val isLeft = isLandscape() && volumePanelOnLeftLand ||
-            !isLandscape() && volumePanelOnLeft
+        val isLeft = volumePanelOnLeft
 
         dialogView.layoutDirection = if (isLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
 
@@ -128,19 +94,6 @@ constructor(
                 }
         }
 
-        context.contentResolver.registerContentObserver(
-            Settings.System.getUriFor(Settings.System.VOLUME_PANEL_ON_LEFT),
-            false,
-            volumePanelOnLeftObserver,
-            UserHandle.USER_ALL
-        )
-        context.contentResolver.registerContentObserver(
-            Settings.System.getUriFor(Settings.System.VOLUME_PANEL_ON_LEFT_LAND),
-            false,
-            volumePanelOnLeftObserver,
-            UserHandle.USER_ALL
-        )
-        volumePanelOnLeftObserver.onChange(true)
         applyLayoutAndGravity()
         configurationController.addCallback(this)
 
@@ -170,7 +123,6 @@ constructor(
     override fun onStop() {
         super.onStop()
         configurationController.removeCallback(this)
-        context.contentResolver.unregisterContentObserver(volumePanelOnLeftObserver)
     }
 
     override fun onOrientationChanged(orientation: Int) {
