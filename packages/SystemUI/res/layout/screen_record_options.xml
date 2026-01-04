@@ -195,17 +195,15 @@
             android:importantForAccessibility="no"/>
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:layout_weight="1"
             android:orientation="vertical">
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="@*android:string/config_bodyFontFamily"
                 android:text="@string/screenrecord_lowquality_label"
-                android:textAppearance="?android:attr/textAppearanceMedium"
-                android:textColor="?android:attr/textColorPrimary"
+                android:textAppearance="@style/TextAppearance.ScreenRecord.SwitchLabel"
                 android:contentDescription="@string/screenrecord_lowquality_label"/>
             <TextView
                 android:layout_width="match_parent"
@@ -336,17 +334,15 @@
             android:importantForAccessibility="no"/>
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:layout_weight="1"
             android:orientation="vertical">
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="@*android:string/config_bodyFontFamily"
                 android:text="@string/screenrecord_longer_timeout_switch_label"
-                android:textAppearance="?android:attr/textAppearanceMedium"
-                android:textColor="?android:attr/textColorPrimary"
+                android:textAppearance="@style/TextAppearance.ScreenRecord.SwitchLabel"
                 android:contentDescription="@string/screenrecord_longer_timeout_switch_label"/>
             <TextView
                 android:layout_width="match_parent"
@@ -477,17 +473,15 @@
             android:importantForAccessibility="no"/>
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:layout_weight="1"
             android:orientation="vertical">
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="@*android:string/config_bodyFontFamily"
                 android:text="@string/screenrecord_skip_time_label"
-                android:textAppearance="?android:attr/textAppearanceMedium"
-                android:textColor="?android:attr/textColorPrimary"
+                android:textAppearance="@style/TextAppearance.ScreenRecord.SwitchLabel"
                 android:contentDescription="@string/screenrecord_skip_time_label"/>
             <TextView
                 android:layout_width="match_parent"
@@ -513,17 +507,15 @@
             android:importantForAccessibility="no"/>
         <LinearLayout
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:minHeight="48dp"
             android:layout_weight="1"
             android:orientation="vertical">
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="@*android:string/config_bodyFontFamily"
                 android:text="@string/screenrecord_hevc_switch_label"
-                android:textAppearance="?android:attr/textAppearanceMedium"
-                android:textColor="?android:attr/textColorPrimary"
+                android:textAppearance="@style/TextAppearance.ScreenRecord.SwitchLabel"
                 android:contentDescription="@string/screenrecord_hevc_switch_label"/>
             <TextView
                 android:layout_width="match_parent"
