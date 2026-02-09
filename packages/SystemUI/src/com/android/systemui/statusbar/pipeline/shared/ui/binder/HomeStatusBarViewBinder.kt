@@ -74,6 +74,7 @@ class HomeStatusBarViewBinderImpl @Inject constructor() : HomeStatusBarViewBinde
         val systemInfoView = view.requireViewById<View>(R.id.status_bar_end_side_content)
         val clockView = view.requireViewById<View>(R.id.clock)
         val notificationIconsArea = view.requireViewById<View>(R.id.notificationIcons)
+        val networkTrafficView = view.requireViewById<View>(R.id.network_traffic_holder)
 
         // GONE because this shouldn't take space in the layout
         systemInfoView.hideInitially()
@@ -159,13 +160,16 @@ class HomeStatusBarViewBinderImpl @Inject constructor() : HomeStatusBarViewBinde
                         // animating, then we can use the baseVis default animation
                         if (animState.isAnimatingChip()) {
                             // Just apply the visibility of the view, but don't animate
+                            networkTrafficView.visibility = baseVis.visibility
                             systemInfoView.visibility = baseVis.visibility
                             // Now apply the animation state, with its animator
                             when (animState) {
                                 AnimatingIn -> {
+                                    systemEventChipAnimateIn?.invoke(networkTrafficView)
                                     systemEventChipAnimateIn?.invoke(systemInfoView)
                                 }
                                 AnimatingOut -> {
+                                    systemEventChipAnimateOut?.invoke(networkTrafficView)
                                     systemEventChipAnimateOut?.invoke(systemInfoView)
                                 }
                                 else -> {
@@ -173,6 +177,7 @@ class HomeStatusBarViewBinderImpl @Inject constructor() : HomeStatusBarViewBinde
                                 }
                             }
                         } else {
+                            networkTrafficView.adjustVisibility(baseVis)
                             systemInfoView.adjustVisibility(baseVis)
                         }
                     }
