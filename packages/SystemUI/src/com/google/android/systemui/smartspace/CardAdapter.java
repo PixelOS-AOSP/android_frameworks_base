@@ -2,60 +2,59 @@ package com.google.android.systemui.smartspace;
 
 import android.app.smartspace.SmartspaceTarget;
 import android.os.Handler;
-
 import com.android.systemui.plugins.BcSmartspaceConfigPlugin;
 import com.android.systemui.plugins.BcSmartspaceDataPlugin;
-
 import com.google.android.systemui.smartspace.uitemplate.BaseTemplateCard;
-
 import java.util.List;
 
 public interface CardAdapter {
-    SmartspaceCard getCardAtPosition(int i);
+  SmartspaceCard getCardAtPosition(int i);
 
-    int getCount();
+  int getCount();
 
-    float getDozeAmount();
+  float getDozeAmount();
 
-    boolean getHasAodLockscreenTransition();
+  boolean getHasAodLockscreenTransition();
 
-    boolean getHasDifferentTargets();
+  boolean getHasDifferentTargets();
 
-    BcSmartspaceCard getLegacyCardAtPosition(int i);
+  BcSmartspaceCard getLegacyCardAtPosition(int i);
 
-    List getLockscreenTargets();
+  List getLockscreenTargets();
 
-    BcSmartspaceRemoteViewsCard getRemoteViewsCardAtPosition(int i);
+  BcSmartspaceRemoteViewsCard getRemoteViewsCardAtPosition(int i);
 
-    List<SmartspaceTarget> getSmartspaceTargets();
+  List<SmartspaceTarget> getSmartspaceTargets();
 
-    SmartspaceTarget getTargetAtPosition(int i);
+  SmartspaceTarget getTargetAtPosition(int i);
 
-    BaseTemplateCard getTemplateCardAtPosition(int i);
+  BaseTemplateCard getTemplateCardAtPosition(int i);
 
-    String getUiSurface();
+  String getUiSurface();
 
-    void setBgHandler(Handler handler);
+  void onBackgroundToggled(boolean z);
 
-    void setConfigProvider(BcSmartspaceConfigPlugin bcSmartspaceConfigPlugin);
+  void setBgHandler(Handler handler);
 
-    void setDataProvider(BcSmartspaceDataPlugin bcSmartspaceDataPlugin);
+  void setConfigProvider(BcSmartspaceConfigPlugin bcSmartspaceConfigPlugin);
 
-    void setDozeAmount(float f);
+  void setDataProvider(BcSmartspaceDataPlugin bcSmartspaceDataPlugin);
 
-    void setKeyguardBypassEnabled(boolean z);
+  void setDozeAmount(float f);
 
-    void setMediaTarget(SmartspaceTarget smartspaceTarget);
+  void setKeyguardBypassEnabled(boolean z);
 
-    void setNonRemoteViewsHorizontalPadding(Integer num);
+  void setMediaTarget(SmartspaceTarget smartspaceTarget);
 
-    void setPrimaryTextColor(int i);
+  void setNonRemoteViewsHorizontalPadding(Integer num);
 
-    void setScreenOn(boolean z);
+  void setPrimaryTextColor(int i);
 
-    void setTargets(List<SmartspaceTarget> list);
+  void setScreenOn(boolean z);
 
-    void setTimeChangedDelegate(BcSmartspaceDataPlugin.TimeChangedDelegate timeChangedDelegate);
+  void setTargets(List<SmartspaceTarget> list);
 
-    void setUiSurface(String str);
+  void setTimeChangedDelegate(BcSmartspaceDataPlugin.TimeChangedDelegate timeChangedDelegate);
+
+  void setUiSurface(String str);
 }
