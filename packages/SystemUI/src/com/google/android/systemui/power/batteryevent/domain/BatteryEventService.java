@@ -23,24 +23,27 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 
 public class BatteryEventService extends Service {
 
     private static final String TAG = "BatteryEventService";
-
-    private static final String ACTION_BATTERY_EVENT =
-            "com.google.android.systemui.power.batteryevent.BATTERY_EVENT";
-
-    private static final String INTELLIGENCE_PACKAGE =
-            "com.google.android.settings.intelligence";
+    private static final String ACTION_BATTERY_EVENT = "PNW.batteryStatusChanged";
+    private static final String INTELLIGENCE_PACKAGE = "com.google.android.settings.intelligence";
+    private static final int WAKELOCK_TIMEOUT_MS = 3000;
 
     private BroadcastReceiver mBatteryReceiver;
+    private PowerManager.WakeLock mWakeLock;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "BatteryEventService created");
+
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG + "::update");
+
         registerBatteryReceiver();
     }
 
@@ -57,6 +60,9 @@ public class BatteryEventService extends Service {
         if (mBatteryReceiver != null) {
             unregisterReceiver(mBatteryReceiver);
             mBatteryReceiver = null;
+        }
+        if (mWakeLock != null && mWakeLock.isHeld()) {
+            mWakeLock.release();
         }
         Log.d(TAG, "BatteryEventService destroyed");
     }
@@ -81,13 +87,23 @@ public class BatteryEventService extends Service {
 
                 Log.d(TAG, "Battery event: action=" + action
                         + " level=" + percent + "% status=" + status);
+                if (mWakeLock != null && !mWakeLock.isHeld()) {
+                    mWakeLock.acquire(WAKELOCK_TIMEOUT_MS);
+                }
 
-                notifyWidget();
+                try {
+                    notifyWidget();
+                } finally {
+                    if (mWakeLock != null && mWakeLock.isHeld()) {
+                        mWakeLock.release();
+                    }
+                }
             }
         };
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_BATTERY_CHANGED);
+        filter.addAction("android.intent.action.BATTERY_LEVEL_CHANGED");
         filter.addAction(Intent.ACTION_POWER_CONNECTED);
         filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
         filter.addAction(Intent.ACTION_BATTERY_LOW);
@@ -99,8 +115,8 @@ public class BatteryEventService extends Service {
 
     private void notifyWidget() {
         try {
-            Intent notify = new Intent("PNW.batteryStatusChanged");
-            notify.setPackage("com.google.android.settings.intelligence");
+            Intent notify = new Intent(ACTION_BATTERY_EVENT);
+            notify.setPackage(INTELLIGENCE_PACKAGE);
             sendBroadcast(notify);
             Log.d(TAG, "Notified Intelligence widget");
         } catch (Exception e) {
