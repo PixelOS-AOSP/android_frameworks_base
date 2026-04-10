@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "422e5d51_82cc906f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 5
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-04-10T09:07:47Z",
+      "side": 1,
+      "message": "Tried and tested with both right and left hand side volume panel, and it seems to work as intended.",
+      "revId": "3be68b7d2be81793c912a2b92b8450dfe69f5cb7",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
