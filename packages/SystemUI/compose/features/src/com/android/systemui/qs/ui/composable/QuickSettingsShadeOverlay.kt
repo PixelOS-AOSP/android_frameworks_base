@@ -341,6 +341,8 @@ private fun ContentScope.QuickSettingsLayout(
     audioDetailsViewModelFactory: AudioDetailsViewModel.Factory,
     modifier: Modifier = Modifier,
 ) {
+    val useQsMediaVolumeSlider = isQsMediaVolumeSliderEnabled()
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier =
@@ -391,18 +393,41 @@ private fun ContentScope.QuickSettingsLayout(
                     enabled = { layoutState.transitionState is TransitionState.Idle }
                 )
             ) {
-                BrightnessSliderContainer(
-                    viewModel = qsContainerViewModel.brightnessSliderViewModel,
-                    containerColors =
-                        ContainerColors(
-                            idleColor = Color.Transparent,
-                            mirrorColor = OverlayShade.Colors.panelBackground(isTransparencyEnabled),
-                        ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (useQsMediaVolumeSlider) {
+                    QuickSettingsSliders(
+                        brightness = {
+                            BrightnessSliderContainer(
+                                viewModel = qsContainerViewModel.brightnessSliderViewModel,
+                                containerColors =
+                                    ContainerColors(
+                                        idleColor = Color.Transparent,
+                                        mirrorColor =
+                                            OverlayShade.Colors.panelBackground(
+                                                isTransparencyEnabled
+                                            ),
+                                    ),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        },
+                        volume = {
+                            QSMediaVolumeSlider(qsContainerViewModel.audioStreamSliderViewModelFactory)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    BrightnessSliderContainer(
+                        viewModel = qsContainerViewModel.brightnessSliderViewModel,
+                        containerColors =
+                            ContainerColors(
+                                idleColor = Color.Transparent,
+                                mirrorColor = OverlayShade.Colors.panelBackground(isTransparencyEnabled),
+                            ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
 
-            if (volumeSliderViewModel != null) {
+            if (!useQsMediaVolumeSlider && volumeSliderViewModel != null) {
                 val volumeSliderState by volumeSliderViewModel.slider.collectAsStateWithLifecycle()
 
                 VerticalSeparator(QuickSettingsShade.Dimensions.Padding)

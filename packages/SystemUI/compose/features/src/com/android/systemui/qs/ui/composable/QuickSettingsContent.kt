@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement.spacedBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,18 +53,42 @@ fun ContentScope.QuickSettingsContent(
         brightness =
             @Composable {
                 if (viewModel.isBrightnessSliderVisible) {
-                    BrightnessSliderContainer(
-                        viewModel.brightnessSliderViewModel,
-                        containerColors =
-                            ContainerColors(
-                                Color.Transparent,
-                                ContainerColors.defaultContainerColor,
-                            ),
-                        modifier =
-                            Modifier.padding(
-                                vertical = dimensionResource(id = R.dimen.qs_brightness_margin_top)
-                            ),
-                    )
+                    if (isQsMediaVolumeSliderEnabled()) {
+                        QuickSettingsSliders(
+                            brightness = {
+                                BrightnessSliderContainer(
+                                    viewModel.brightnessSliderViewModel,
+                                    containerColors =
+                                        ContainerColors(
+                                            Color.Transparent,
+                                            ContainerColors.defaultContainerColor,
+                                        ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            },
+                            volume = {
+                                QSMediaVolumeSlider(viewModel.audioStreamSliderViewModelFactory)
+                            },
+                            modifier =
+                                Modifier.padding(
+                                    vertical =
+                                        dimensionResource(id = R.dimen.qs_brightness_margin_top)
+                                ),
+                        )
+                    } else {
+                        BrightnessSliderContainer(
+                            viewModel.brightnessSliderViewModel,
+                            containerColors =
+                                ContainerColors(
+                                    Color.Transparent,
+                                    ContainerColors.defaultContainerColor,
+                                ),
+                            modifier =
+                                Modifier.padding(
+                                    vertical = dimensionResource(id = R.dimen.qs_brightness_margin_top)
+                                ),
+                        )
+                    }
                 }
             },
         tiles =

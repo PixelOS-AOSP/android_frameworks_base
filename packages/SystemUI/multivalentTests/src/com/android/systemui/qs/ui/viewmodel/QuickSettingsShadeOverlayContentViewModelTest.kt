@@ -42,6 +42,7 @@ import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.se
 import com.android.systemui.power.domain.interactor.PowerInteractor.Companion.setAwakeForTest
 import com.android.systemui.power.domain.interactor.powerInteractor
 import com.android.systemui.qs.composefragment.dagger.usingMediaInComposeFragment
+import com.android.systemui.qs.flags.QsDetailedView
 import com.android.systemui.qs.panels.data.repository.qsPanelAppearanceRepository
 import com.android.systemui.res.R
 import com.android.systemui.scene.domain.interactor.sceneInteractor
@@ -218,6 +219,32 @@ class QuickSettingsShadeOverlayContentViewModelTest : SysuiTestCase() {
         }
 
     @Test
+    @EnableFlags(QsDetailedView.FLAG_NAME)
+    fun volumeSliderViewModel_qsMediaSliderDisabledAndDesktopAudioEnabled_present() =
+        kosmos.runTest {
+            setDesktopAudioTileDetailsEnabled(true)
+            setQsMediaVolumeSliderEnabled(false)
+
+            val viewModel =
+                quickSettingsShadeOverlayContentViewModelFactory.create(testScope.backgroundScope)
+
+            assertThat(viewModel.volumeSliderViewModel).isNotNull()
+        }
+
+    @Test
+    @EnableFlags(QsDetailedView.FLAG_NAME)
+    fun volumeSliderViewModel_qsMediaSliderEnabledAndDesktopAudioEnabled_absent() =
+        kosmos.runTest {
+            setDesktopAudioTileDetailsEnabled(true)
+            setQsMediaVolumeSliderEnabled(true)
+
+            val viewModel =
+                quickSettingsShadeOverlayContentViewModelFactory.create(testScope.backgroundScope)
+
+            assertThat(viewModel.volumeSliderViewModel).isNull()
+        }
+
+    @Test
     @DisableFlags(StatusBarForDesktop.FLAG_NAME)
     fun showHeader_desktopStatusBarEnabled_statusBarForDesktopDisabled_true() =
         kosmos.runTest {
@@ -228,6 +255,22 @@ class QuickSettingsShadeOverlayContentViewModelTest : SysuiTestCase() {
     private fun Kosmos.setUseDesktopStatusBar(enable: Boolean) {
         testableContext.orCreateTestableResources.addOverride(
             R.bool.config_useDesktopStatusBar,
+            enable,
+        )
+        configurationController.onConfigurationChanged(Configuration())
+    }
+
+    private fun Kosmos.setDesktopAudioTileDetailsEnabled(enable: Boolean) {
+        testableContext.orCreateTestableResources.addOverride(
+            R.bool.config_enableDesktopAudioTileDetailsView,
+            enable,
+        )
+        configurationController.onConfigurationChanged(Configuration())
+    }
+
+    private fun Kosmos.setQsMediaVolumeSliderEnabled(enable: Boolean) {
+        testableContext.orCreateTestableResources.addOverride(
+            R.bool.config_enableQsMediaVolumeSlider,
             enable,
         )
         configurationController.onConfigurationChanged(Configuration())

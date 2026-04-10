@@ -178,6 +178,19 @@ class QSPanelTest(flags: FlagsParameterization) : SysuiTestCase() {
     }
 
     @Test
+    fun tuningBrightnessHidesWholeSliderRow() {
+        val slidersRowView = QSSlidersRowView(themedContext)
+        slidersRowView.setBrightnessView(View(themedContext))
+        qsPanel.setBrightnessView(slidersRowView)
+
+        qsPanel.onTuningChanged(QSPanel.QS_SHOW_BRIGHTNESS, "0")
+        assertThat(slidersRowView.visibility).isEqualTo(View.GONE)
+
+        qsPanel.onTuningChanged(QSPanel.QS_SHOW_BRIGHTNESS, "1")
+        assertThat(slidersRowView.visibility).isEqualTo(View.VISIBLE)
+    }
+
+    @Test
     fun testSplitShade_CollapseAccessibilityActionNotAnnounced() {
         qsPanel.setCanCollapse(false)
         val accessibilityInfo = mock(AccessibilityNodeInfo::class.java)

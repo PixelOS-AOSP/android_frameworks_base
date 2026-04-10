@@ -16,6 +16,7 @@
 
 package com.android.systemui.qs.ui.composable
 
+import android.content.testableContext
 import android.testing.TestableLooper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.Saver
@@ -35,8 +36,10 @@ import com.android.systemui.kosmos.testScope
 import com.android.systemui.qs.composefragment.dagger.usingMediaInComposeFragment
 import com.android.systemui.qs.pipeline.domain.interactor.currentTilesInteractor
 import com.android.systemui.qs.pipeline.shared.TileSpec
+import com.android.systemui.qs.ui.composable.QS_MEDIA_VOLUME_SLIDER_TAG
 import com.android.systemui.qs.ui.viewmodel.quickSettingsSceneContentViewModelFactory
 import com.android.systemui.qs.ui.viewmodel.quickSettingsUserActionsViewModelFactory
+import com.android.systemui.res.R
 import com.android.systemui.scene.session.shared.SessionStorage
 import com.android.systemui.scene.session.ui.composable.SaveableSession
 import com.android.systemui.scene.session.ui.composable.Session
@@ -78,6 +81,10 @@ class QuickSettingsSceneTest : SysuiTestCase() {
             }
 
         usingMediaInComposeFragment = true
+        kosmos.testableContext.orCreateTestableResources.addOverride(
+            R.bool.config_enableQsMediaVolumeSlider,
+            true,
+        )
 
         currentTilesInteractor.setTiles(
             listOf(
@@ -113,6 +120,7 @@ class QuickSettingsSceneTest : SysuiTestCase() {
 
         // Verify that the brightness slider exists.
         composeTestRule.onNodeWithTag(resIdToTestTag("brightness_slider")).assertExists()
+        composeTestRule.onNodeWithTag(QS_MEDIA_VOLUME_SLIDER_TAG).assertExists()
 
         // Verify that the tiles exist.
         composeTestRule.onNodeWithTag("element:internet").assertExists()

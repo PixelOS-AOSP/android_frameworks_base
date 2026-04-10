@@ -151,6 +151,9 @@ import com.android.systemui.qs.shared.ui.QuickSettings.Elements
 import com.android.systemui.qs.ui.composable.QuickSettingsShade
 import com.android.systemui.qs.ui.composable.QuickSettingsShade.systemGestureExclusionInShade
 import com.android.systemui.qs.ui.composable.QuickSettingsTheme
+import com.android.systemui.qs.ui.composable.QSMediaVolumeSlider
+import com.android.systemui.qs.ui.composable.QuickSettingsSliders
+import com.android.systemui.qs.ui.composable.isQsMediaVolumeSliderEnabled
 import com.android.systemui.res.R
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround
@@ -877,17 +880,44 @@ constructor(
                                         }
                                     )
                                 ) {
-                                    AlwaysDarkMode {
-                                        BrightnessSliderContainer(
-                                            viewModel =
-                                                containerViewModel.brightnessSliderViewModel,
-                                            containerColors =
-                                                ContainerColors(
-                                                    Color.Transparent,
-                                                    ContainerColors.defaultContainerColor,
-                                                ),
+                                    if (isQsMediaVolumeSliderEnabled()) {
+                                        QuickSettingsSliders(
+                                            brightness = {
+                                                AlwaysDarkMode {
+                                                    BrightnessSliderContainer(
+                                                        viewModel =
+                                                            containerViewModel
+                                                                .brightnessSliderViewModel,
+                                                        containerColors =
+                                                            ContainerColors(
+                                                                Color.Transparent,
+                                                                ContainerColors.defaultContainerColor,
+                                                            ),
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                    )
+                                                }
+                                            },
+                                            volume = {
+                                                QSMediaVolumeSlider(
+                                                    containerViewModel
+                                                        .audioStreamSliderViewModelFactory
+                                                )
+                                            },
                                             modifier = Modifier.fillMaxWidth(),
                                         )
+                                    } else {
+                                        AlwaysDarkMode {
+                                            BrightnessSliderContainer(
+                                                viewModel =
+                                                    containerViewModel.brightnessSliderViewModel,
+                                                containerColors =
+                                                    ContainerColors(
+                                                        Color.Transparent,
+                                                        ContainerColors.defaultContainerColor,
+                                                    ),
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
                                     }
                                 }
                             }
