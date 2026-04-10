@@ -34,6 +34,7 @@ import androidx.test.filters.SmallTest
 import com.android.systemui.SysuiTestCase
 import com.android.systemui.qs.composefragment.QuickQuickSettingsLayout
 import com.android.systemui.qs.composefragment.QuickSettingsLayout
+import com.android.systemui.qs.ui.composable.QuickSettingsSliders
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
@@ -93,7 +94,7 @@ class QSFragmentComposeTest : SysuiTestCase() {
     fun portraitLayout_qs() {
         composeTestRule.setContent {
             QuickSettingsLayout(
-                brightness = { Brightness() },
+                brightness = { Sliders(isVolumeSliderEnabled = false) },
                 tiles = { Tiles(TILES_HEIGHT_PORTRAIT) },
                 media = { Media() },
                 mediaInRow = false,
@@ -120,7 +121,7 @@ class QSFragmentComposeTest : SysuiTestCase() {
     fun landscapeLayout_qs() {
         composeTestRule.setContent {
             QuickSettingsLayout(
-                brightness = { Brightness() },
+                brightness = { Sliders(isVolumeSliderEnabled = false) },
                 tiles = { Tiles(TILES_HEIGHT_PORTRAIT) },
                 media = { Media() },
                 mediaInRow = true,
@@ -150,8 +151,37 @@ class QSFragmentComposeTest : SysuiTestCase() {
         assertThat((tilesBounds.centerY - mediaBounds.centerY).abs()).isAtMost(1.dp)
     }
 
+    @Test
+    fun landscapeLayout_qsSplitSliders() {
+        composeTestRule.setContent {
+            QuickSettingsLayout(
+                brightness = { Sliders(isVolumeSliderEnabled = true) },
+                tiles = { Tiles(TILES_HEIGHT_PORTRAIT) },
+                media = { Media() },
+                mediaInRow = true,
+            )
+        }
+
+        composeTestRule.waitForIdle()
+
+        val brightnessBounds = composeTestRule.onNodeWithTag(BRIGHTNESS).getBoundsInRoot()
+        val volumeBounds = composeTestRule.onNodeWithTag(VOLUME).getBoundsInRoot()
+        val tilesBounds = composeTestRule.onNodeWithTag(TILES).getBoundsInRoot()
+        val mediaBounds = composeTestRule.onNodeWithTag(MEDIA).getBoundsInRoot()
+
+        assertThat(brightnessBounds.right).isLessThan(volumeBounds.left)
+        assertThat((brightnessBounds.width - volumeBounds.width).abs()).isAtMost(1.dp)
+
+        assertThat(brightnessBounds.left).isEqualTo(tilesBounds.left)
+        assertThat(volumeBounds.right).isEqualTo(mediaBounds.right)
+
+        assertThat(brightnessBounds.bottom).isLessThan(tilesBounds.top)
+        assertThat(volumeBounds.bottom).isLessThan(mediaBounds.top)
+    }
+
     private companion object {
         const val BRIGHTNESS = "brightness"
+        const val VOLUME = "volume"
         const val TILES = "tiles"
         const val MEDIA = "media"
         val TILES_HEIGHT_PORTRAIT = 300.dp
@@ -162,6 +192,20 @@ class QSFragmentComposeTest : SysuiTestCase() {
         @Composable
         fun Brightness() {
             Box(modifier = Modifier.testTag(BRIGHTNESS).height(BRIGHTNESS_HEIGHT).fillMaxWidth())
+        }
+
+        @Composable
+        fun Volume() {
+            Box(modifier = Modifier.testTag(VOLUME).height(BRIGHTNESS_HEIGHT).fillMaxWidth())
+        }
+
+        @Composable
+        fun Sliders(isVolumeSliderEnabled: Boolean) {
+            QuickSettingsSliders(
+                brightness = { Brightness() },
+                volume = { Volume() },
+                isVolumeSliderEnabled = isVolumeSliderEnabled,
+            )
         }
 
         @Composable

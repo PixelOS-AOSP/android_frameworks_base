@@ -141,7 +141,8 @@ constructor(
 
     private val showVolumeSlider =
         QsDetailedView.isEnabled &&
-            shadeContext.resources.getBoolean(R.bool.config_enableDesktopAudioTileDetailsView)
+            shadeContext.resources.getBoolean(R.bool.config_enableDesktopAudioTileDetailsView) &&
+            !shadeContext.resources.getBoolean(R.bool.config_enableQsMediaVolumeSlider)
 
     val volumeSliderViewModel =
         if (showVolumeSlider && volumeSliderCoroutineScope != null)

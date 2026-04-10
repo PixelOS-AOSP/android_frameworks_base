@@ -33,6 +33,7 @@ import com.android.systemui.qs.panels.ui.viewmodel.TileGridViewModel
 import com.android.systemui.shade.domain.interactor.ShadeDisplaysInteractor
 import com.android.systemui.shade.shared.flag.ShadeWindowGoesAround
 import com.android.systemui.shade.ui.viewmodel.ShadeHeaderViewModel
+import com.android.systemui.volume.panel.component.volume.slider.ui.viewmodel.AudioStreamSliderViewModel
 import dagger.Lazy
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -49,6 +50,7 @@ constructor(
     brightnessSliderViewModelFactory: BrightnessSliderViewModel.Factory,
     shadeHeaderViewModelFactory: ShadeHeaderViewModel.Factory,
     tileGridViewModelFactory: TileGridViewModel.Factory,
+    val audioStreamSliderViewModelFactory: AudioStreamSliderViewModel.Factory,
     @Assisted private val supportsBrightnessMirroring: Boolean,
     val editModeViewModel: EditModeViewModel,
     val detailsViewModel: DetailsViewModel,
