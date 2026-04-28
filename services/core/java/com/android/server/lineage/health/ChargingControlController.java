@@ -134,6 +134,7 @@ public class ChargingControlController extends LineageHealthFeature {
 
     public boolean setEnabled(boolean enabled) {
         putBoolean(Settings.System.CHARGING_CONTROL_ENABLED, enabled);
+        applySettingChange();
         return true;
     }
 
@@ -155,6 +156,7 @@ public class ChargingControlController extends LineageHealthFeature {
         }
 
         putInt(Settings.System.CHARGING_CONTROL_MODE, mode);
+        applySettingChange();
         return true;
     }
 
@@ -197,6 +199,7 @@ public class ChargingControlController extends LineageHealthFeature {
         }
 
         putInt(Settings.System.CHARGING_CONTROL_START_TIME, time);
+        applySettingChange();
         return true;
     }
 
@@ -212,6 +215,7 @@ public class ChargingControlController extends LineageHealthFeature {
         }
 
         putInt(Settings.System.CHARGING_CONTROL_TARGET_TIME, time);
+        applySettingChange();
         return true;
     }
 
@@ -227,6 +231,7 @@ public class ChargingControlController extends LineageHealthFeature {
         }
 
         putInt(Settings.System.CHARGING_CONTROL_LIMIT, limit);
+        applySettingChange();
         return true;
     }
 
@@ -502,6 +507,10 @@ public class ChargingControlController extends LineageHealthFeature {
 
         // Update based on those values
         updateChargeControl();
+    }
+
+    private void applySettingChange() {
+        mHandler.post(this::handleSettingChange);
     }
 
     @Override
