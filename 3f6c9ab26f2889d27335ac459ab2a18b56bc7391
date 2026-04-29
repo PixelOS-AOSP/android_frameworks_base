@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "bca8270c_e49c8e24",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-04-29T04:00:11Z",
+      "side": 1,
+      "message": "Why was it broken in first place?",
+      "revId": "3f6c9ab26f2889d27335ac459ab2a18b56bc7391",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
