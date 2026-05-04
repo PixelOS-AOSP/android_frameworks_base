@@ -41,6 +41,30 @@
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "d2b8d773_3ce985bc",
+        "filename": "packages/SystemUI/src/com/android/systemui/power/EnhancedEstimatesImpl.java",
+        "patchSetId": 2
+      },
+      "lineNbr": 26,
+      "author": {
+        "id": 1000053
+      },
+      "writtenOn": "2026-05-04T02:20:10Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "bba0cae7_df26c827",
+      "range": {
+        "startLine": 26,
+        "startChar": 63,
+        "endLine": 26,
+        "endChar": 80
+      },
+      "revId": "23e0b42cf5fdfacc3884e56e463949185a52bcb0",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "fc56e539_efc9f23d",
@@ -148,6 +172,30 @@
       "writtenOn": "2026-05-03T15:42:22Z",
       "side": 1,
       "message": "Convert this into a separate function.",
+      "range": {
+        "startLine": 68,
+        "startChar": 0,
+        "endLine": 90,
+        "endChar": 13
+      },
+      "revId": "23e0b42cf5fdfacc3884e56e463949185a52bcb0",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "50582f9d_f7922404",
+        "filename": "packages/SystemUI/src/com/android/systemui/power/EnhancedEstimatesImpl.java",
+        "patchSetId": 2
+      },
+      "lineNbr": 90,
+      "author": {
+        "id": 1000053
+      },
+      "writtenOn": "2026-05-04T02:20:10Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "bcc6257f_3eb463d9",
       "range": {
         "startLine": 68,
         "startChar": 0,
