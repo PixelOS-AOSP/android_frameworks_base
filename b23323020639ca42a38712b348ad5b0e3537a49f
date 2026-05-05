@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "abd5aca6_71d0590f",
+        "filename": "packages/SystemUI/src/com/android/systemui/power/EnhancedEstimatesImpl.java",
+        "patchSetId": 8
+      },
+      "lineNbr": 36,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-05-05T03:31:23Z",
+      "side": 1,
+      "message": "Any reason for them to be static?",
+      "range": {
+        "startLine": 23,
+        "startChar": 3,
+        "endLine": 36,
+        "endChar": 83
+      },
+      "revId": "b23323020639ca42a38712b348ad5b0e3537a49f",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
