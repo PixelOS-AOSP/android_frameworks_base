@@ -253,15 +253,15 @@ public class DateSmartspaceView extends LinearLayout
         super.setOrientation(orientation);
         WeatherSmartspaceView weatherSmartspaceView =
                 (WeatherSmartspaceView) findViewById(R.id.weather_smartspace_view);
-        if (orientation != 0 && weatherSmartspaceView != null) {
-            if (orientation == 1) {
-                mDateView.setOnClickListener(null);
-                mDateView.setClickable(false);
-                setClickable(true);
-                setFocusable(true);
-                setOnClickListener(weatherSmartspaceView.mOnClickListener);
-                return;
-            }
+        if (orientation == 1 && weatherSmartspaceView != null) {
+            mDateView.setOnClickListener(null);
+            mDateView.setClickable(false);
+            setClickable(true);
+            setFocusable(true);
+            setOnClickListener(weatherSmartspaceView.mOnClickListener);
+            return;
+        }
+        if (orientation != 0) {
             return;
         }
         BcSmartSpaceUtil.setOnClickListener(
