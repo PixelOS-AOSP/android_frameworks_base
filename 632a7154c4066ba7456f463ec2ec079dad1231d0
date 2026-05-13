@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "acb3de57_0133afaf",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000034
+      },
+      "writtenOn": "2026-05-13T08:06:02Z",
+      "side": 1,
+      "message": "The battery widget seems to work without this topic, what\u0027s this topic exactly for?",
+      "revId": "632a7154c4066ba7456f463ec2ec079dad1231d0",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
