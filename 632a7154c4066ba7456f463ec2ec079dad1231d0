@@ -33,6 +33,24 @@
       "message": "what is this for exactly?",
       "revId": "632a7154c4066ba7456f463ec2ec079dad1231d0",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "53e2dd29_9e19425b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000148
+      },
+      "writtenOn": "2026-05-14T02:58:13Z",
+      "side": 1,
+      "message": "I think it works but not in real time, for example when the battery indicator is 98% when it drops to 95% the widget stays at 98%",
+      "parentUuid": "acb3de57_0133afaf",
+      "revId": "632a7154c4066ba7456f463ec2ec079dad1231d0",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
