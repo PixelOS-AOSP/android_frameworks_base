@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "597c0043_548a5ab9",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-05-29T07:36:15Z",
+      "side": 1,
+      "message": "squash merge with previous commit.",
+      "revId": "f1f7a3e93a62ca904056504ef5fb517273b2c9ef",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
