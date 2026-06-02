@@ -1225,27 +1225,12 @@ public class KeyguardIndicationController {
         if (mBatteryDead) {
             return mContext.getResources().getString(R.string.keyguard_plugged_in, percentage);
         }
-
         final boolean hasChargingTime = mChargingTimeRemaining > 0;
         int chargingId;
         if (mPowerPluggedInWired) {
-            switch (mChargingSpeed) {
-                case BatteryStatus.CHARGING_FAST:
-                    chargingId = hasChargingTime
-                            ? R.string.keyguard_indication_charging_time_fast
-                            : R.string.keyguard_plugged_in_charging_fast;
-                    break;
-                case BatteryStatus.CHARGING_SLOWLY:
-                    chargingId = hasChargingTime
-                            ? R.string.keyguard_indication_charging_time_slowly
-                            : R.string.keyguard_plugged_in_charging_slowly;
-                    break;
-                default:
-                    chargingId = hasChargingTime
-                            ? R.string.keyguard_indication_charging_time
-                            : R.string.keyguard_plugged_in;
-                    break;
-            }
+            chargingId = hasChargingTime
+                    ? R.string.keyguard_indication_charging_time
+                    : R.string.keyguard_plugged_in;
         } else if (mPowerPluggedInWireless) {
             chargingId = hasChargingTime
                     ? R.string.keyguard_indication_charging_time_wireless
@@ -1263,7 +1248,7 @@ public class KeyguardIndicationController {
         String batteryInfo = "";
         boolean showbatteryInfo = Settings.System.getIntForUser(mContext.getContentResolver(),
             Settings.System.LOCKSCREEN_BATTERY_INFO, 1, UserHandle.USER_CURRENT) == 1;
-         if (showbatteryInfo) {
+        if (showbatteryInfo) {
             if (mChargingCurrent >= 1000 * 1000) {
                 batteryInfo = String.format("%.1f" , (mChargingCurrent / 1000 / 1000)) + "A";
             } else if (mChargingCurrent > 0) {
@@ -1443,17 +1428,26 @@ public class KeyguardIndicationController {
             mPowerCharged = status.isCharged();
             final Intent batteryIntent = mContext.registerReceiver(
                     null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            final float maxChargingCurrent = batteryIntent != null
+                    ? batteryIntent.getIntExtra("max_charging_current", 0)
+                    : 0;
+            final float maxChargingVoltage = batteryIntent != null
+                    ? batteryIntent.getIntExtra("max_charging_voltage", 0)
+                    : 0;
+            final float temperature = batteryIntent != null
+                    ? batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
+                    : 0;
             mChargingCurrent = getRealtimeChargingCurrent(
-                    isChargingOrFull, status.maxChargingCurrent);
+                    isChargingOrFull, maxChargingCurrent);
             mChargingVoltage = getRealtimeChargingVoltage(
-                    batteryIntent, status.maxChargingVoltage);
+                    batteryIntent, maxChargingVoltage);
             mChargingWattage = getRealtimeChargingWattage(
                     mChargingCurrent, mChargingVoltage, status.maxChargingWattage);
             mChargingSpeed = status.getChargingSpeed(mContext);
             mChargingStatus = status.chargingStatus;
             mBatteryLevel = status.level;
             mBatteryPresent = status.present;
-            mTemperature = status.temperature;
+            mTemperature = temperature;
             mBatteryDefender = isBatteryDefender(status);
             mBatteryDead = status.isDead();
             // when the battery is overheated, device doesn't charge so only guard on pluggedIn:
