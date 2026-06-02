@@ -1474,17 +1474,26 @@ public class KeyguardIndicationController {
             mPowerCharged = status.isCharged();
             final Intent batteryIntent = mContext.registerReceiver(
                     null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            final float maxChargingCurrent = batteryIntent != null
+                    ? batteryIntent.getIntExtra("max_charging_current", 0)
+                    : 0;
+            final float maxChargingVoltage = batteryIntent != null
+                    ? batteryIntent.getIntExtra("max_charging_voltage", 0)
+                    : 0;
+            final float temperature = batteryIntent != null
+                    ? batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
+                    : 0;
             mChargingCurrent = getRealtimeChargingCurrent(
-                    isChargingOrFull, status.maxChargingCurrent);
+                    isChargingOrFull, maxChargingCurrent);
             mChargingVoltage = getRealtimeChargingVoltage(
-                    batteryIntent, status.maxChargingVoltage);
+                    batteryIntent, maxChargingVoltage);
             mChargingWattage = getRealtimeChargingWattage(
                     mChargingCurrent, mChargingVoltage, status.maxChargingWattage);
             mChargingSpeed = status.getChargingSpeed(mContext);
             mChargingStatus = status.chargingStatus;
             mBatteryLevel = status.level;
             mBatteryPresent = status.present;
-            mTemperature = status.temperature;
+            mTemperature = temperature;
             mBatteryDefender = isBatteryDefender(status);
             mBatteryDead = status.isDead();
             // when the battery is overheated, device doesn't charge so only guard on pluggedIn:
