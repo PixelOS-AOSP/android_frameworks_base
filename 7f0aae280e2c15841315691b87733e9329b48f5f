@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "ac534c74_ca4f0698",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-06-03T07:52:42Z",
+      "side": 1,
+      "message": "We don\u0027t even enable DEBUG_CHARGING_SPEED.",
+      "revId": "7f0aae280e2c15841315691b87733e9329b48f5f",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
