@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "0ff0e46d_bb925ee6",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 2
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-06-03T07:53:31Z",
+      "side": 1,
+      "message": "This should be resolved to corresponding PixelOS change.",
+      "range": {
+        "startLine": 9,
+        "startChar": 0,
+        "endLine": 9,
+        "endChar": 136
+      },
+      "revId": "1423d0a83f60ed20ff98512a483a6927fedfcbba",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
