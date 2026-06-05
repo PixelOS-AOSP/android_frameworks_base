@@ -18,6 +18,23 @@
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "973a5551_74ed558d",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000151
+      },
+      "writtenOn": "2026-06-05T14:01:00Z",
+      "side": 1,
+      "message": "I\u0027ve reworked these commits, I was just building on the last one you merged, but it\u0027s not correct.",
+      "revId": "eba6c978b2b5ac1f95140d8e1e2b659fed67eeff",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "bdfb5420_db7b1688",
