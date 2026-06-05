@@ -16,6 +16,23 @@
       "message": "Please drop your votes if it works or not",
       "revId": "eba6c978b2b5ac1f95140d8e1e2b659fed67eeff",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "bdfb5420_db7b1688",
+        "filename": "packages/SystemUI/src/com/android/systemui/power/EnhancedEstimatesImpl.java",
+        "patchSetId": 4
+      },
+      "lineNbr": 128,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-06-05T12:52:07Z",
+      "side": 1,
+      "message": "is there a reason why the default value here is false? previous impl and current impl sends different return values.",
+      "revId": "eba6c978b2b5ac1f95140d8e1e2b659fed67eeff",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
