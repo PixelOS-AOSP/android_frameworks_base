@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "5d3a5024_c73475a9",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000151
+      },
+      "writtenOn": "2026-06-07T20:47:47Z",
+      "side": 1,
+      "message": "UPD\n\nThis patchset adds charging stats to the lockscreen while the device is plugged in, including current, wattage, voltage and battery temperature. It also uses realtime charging values for the displayed power and avoids showing a misleading fast charging label.\n\nExtra/unrelated commits were dropped from the series.",
+      "revId": "ceb07e7bf74ab23867bdfa21070d1cc2123ce903",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
