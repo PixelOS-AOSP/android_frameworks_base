@@ -1,0 +1,73 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "4f694221_59716049",
+        "filename": "packages/SystemUI/src/com/android/systemui/statusbar/KeyguardIndicationController.java",
+        "patchSetId": 4
+      },
+      "lineNbr": 1261,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-06-08T03:49:29Z",
+      "side": 1,
+      "message": "use constants instead, what am i supposed to relate these numbers for?",
+      "range": {
+        "startLine": 1261,
+        "startChar": 36,
+        "endLine": 1261,
+        "endChar": 47
+      },
+      "revId": "1d3a063649347edb3b98cfa64a91174d136f2e90",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "0f2ca638_2fce4065",
+        "filename": "packages/SystemUI/src/com/android/systemui/statusbar/KeyguardIndicationController.java",
+        "patchSetId": 4
+      },
+      "lineNbr": 1268,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-06-08T03:49:29Z",
+      "side": 1,
+      "message": "same for all these.",
+      "range": {
+        "startLine": 1268,
+        "startChar": 67,
+        "endLine": 1268,
+        "endChar": 78
+      },
+      "revId": "1d3a063649347edb3b98cfa64a91174d136f2e90",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "d8dee24c_06625954",
+        "filename": "packages/SystemUI/src/com/android/systemui/statusbar/KeyguardIndicationController.java",
+        "patchSetId": 4
+      },
+      "lineNbr": 1293,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-06-08T03:49:29Z",
+      "side": 1,
+      "message": "move return outside of the if-else block.",
+      "range": {
+        "startLine": 1283,
+        "startChar": 0,
+        "endLine": 1293,
+        "endChar": 5
+      },
+      "revId": "1d3a063649347edb3b98cfa64a91174d136f2e90",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
