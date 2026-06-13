@@ -16,6 +16,24 @@
       "message": "hold",
       "revId": "d9fed1cab35b440ceda0440310b48e837229e3bc",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "fae59210_14db7c99",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 7
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000151
+      },
+      "writtenOn": "2026-06-13T10:33:49Z",
+      "side": 1,
+      "message": "I abandoned the dangling changes. I don\u0027t understand what the remaining issue is now. Could you please clarify?",
+      "parentUuid": "3affa454_1f06416d",
+      "revId": "d9fed1cab35b440ceda0440310b48e837229e3bc",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
