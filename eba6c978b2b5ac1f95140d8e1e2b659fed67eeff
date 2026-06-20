@@ -138,6 +138,24 @@
       "parentUuid": "bdfb5420_db7b1688",
       "revId": "eba6c978b2b5ac1f95140d8e1e2b659fed67eeff",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "ed5b536c_76280828",
+        "filename": "packages/SystemUI/src/com/android/systemui/power/EnhancedEstimatesImpl.java",
+        "patchSetId": 4
+      },
+      "lineNbr": 128,
+      "author": {
+        "id": 1000151
+      },
+      "writtenOn": "2026-06-20T03:33:33Z",
+      "side": 1,
+      "message": "The low_threshold and severe_threshold thresholds are set in milliseconds: by default, 3 hours and 1 hour.\n\nThe last parameter, low_varning_enabled, is responsible only for enabling this option. If the option is disabled or not set, this mechanism is not used, and the behavior remains as before.",
+      "parentUuid": "ae93f72a_a38f2984",
+      "revId": "eba6c978b2b5ac1f95140d8e1e2b659fed67eeff",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
