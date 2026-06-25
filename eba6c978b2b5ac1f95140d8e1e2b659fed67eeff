@@ -105,6 +105,23 @@
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "96290dfd_ccd2e730",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000151
+      },
+      "writtenOn": "2026-06-25T18:44:38Z",
+      "side": 1,
+      "message": "On my build, com.google.android.apps.turbo is installed and the EstimatedTimeRemainingProvider exists, but the provider returns no data:\n\n$ adb shell pm list packages | grep turbo\nadb shell pm path com.google.android.apps.turbo\nadb shell dumpsys package com.google.android.apps.turbo | grep -i enabled\npackage:com.google.android.turboadapter\npackage:com.google.android.apps.turbo\npackage:/data/app/~~lFAxSMFFWac9c3HYhK3Rgw\u003d\u003d/com.google.android.apps.turbo-SslIJbQUlZl7-vx8L1GCAQ\u003d\u003d/base.apk\npackage:/data/app/~~lFAxSMFFWac9c3HYhK3Rgw\u003d\u003d/com.google.android.apps.turbo-SslIJbQUlZl7-vx8L1GCAQ\u003d\u003d/split_config.arm64_v8a.apk\npackage:/data/app/~~lFAxSMFFWac9c3HYhK3Rgw\u003d\u003d/com.google.android.apps.turbo-SslIJbQUlZl7-vx8L1GCAQ\u003d\u003d/split_config.ru.apk\npackage:/data/app/~~lFAxSMFFWac9c3HYhK3Rgw\u003d\u003d/com.google.android.apps.turbo-SslIJbQUlZl7-vx8L1GCAQ\u003d\u003d/split_config.xxhdpi.apk\n    User 0: ceDataInode\u003d5180 deDataInode\u003d3448 installed\u003dtrue hidden\u003dfalse suspended\u003dfalse distractionFlags\u003d0 stopped\u003dfalse notLaunched\u003dfalse enabled\u003d0 instant\u003dfalse virtual\u003dfalse quarantined\u003dfalse\n      enabledComponents:\n    User 0: ceDataInode\u003d0 deDataInode\u003d0 installed\u003dtrue hidden\u003dfalse suspended\u003dfalse distractionFlags\u003d0 stopped\u003dfalse notLaunched\u003dfalse enabled\u003d0 instant\u003dfalse virtual\u003dfalse quarantined\u003dfalse\n[user@archlinux pixelos]$ adb shell content query \\\n  --uri content://com.google.android.apps.turbo.estimated_time_remaining/time_remaining\nNo result found.\n\nSo SystemUI reaches Turbo, but Turbo does not provide a valid battery_estimate.",
+      "revId": "eba6c978b2b5ac1f95140d8e1e2b659fed67eeff",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "bdfb5420_db7b1688",
