@@ -140,6 +140,24 @@
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "f6ac35c2_e15bb735",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000053
+      },
+      "writtenOn": "2026-06-27T11:23:50Z",
+      "side": 1,
+      "message": "I forgot to mention that the device is running stock firmware.",
+      "parentUuid": "92a99b92_7c65f7f6",
+      "revId": "eba6c978b2b5ac1f95140d8e1e2b659fed67eeff",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "bdfb5420_db7b1688",
