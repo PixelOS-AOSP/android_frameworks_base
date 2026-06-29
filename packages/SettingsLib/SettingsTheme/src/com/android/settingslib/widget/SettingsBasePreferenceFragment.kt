@@ -58,6 +58,7 @@ abstract class SettingsBasePreferenceFragment : PreferenceFragmentCompat() {
         preferenceScreen?.let { screen ->
             recursiveInitializePreferences(screen)
         }
+        return view
     }
 
     override fun setPreferenceScreen(preferenceScreen: PreferenceScreen?) {
@@ -89,7 +90,6 @@ abstract class SettingsBasePreferenceFragment : PreferenceFragmentCompat() {
                 recursiveInitializePreferences(preference)
             }
         }
-        return view
     }
 
     @CallSuper
