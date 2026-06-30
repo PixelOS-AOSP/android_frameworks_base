@@ -1301,7 +1301,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                 }
             }
         } else if (mTorchGesture && beganFromNonInteractive) {
-            wakeUpFromWakeKey(eventTime, KEYCODE_POWER, /* isDown= */ false);
+            wakeUpFromWakeKey(
+                    displayId,
+                    eventTime,
+                    KEYCODE_POWER,
+                    /* isDown= */ false,
+                    /* keyEventFlags= */ 0);
         }
     }
 
