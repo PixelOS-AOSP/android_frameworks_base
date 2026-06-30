@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a881472e_0c5af3f0",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000156
+      },
+      "writtenOn": "2026-06-30T06:18:51Z",
+      "side": 1,
+      "message": "I suggest updating directly to CP2A. It switched to ViewPager2 and resolved some of the previous issues.",
+      "revId": "ad2069abe14fc9e2418561f3576d0e05433003d2",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
