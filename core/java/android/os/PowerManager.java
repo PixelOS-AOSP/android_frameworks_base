@@ -457,6 +457,7 @@ public final class PowerManager {
     @IntDef(flag = true, prefix = {"USER_ACTIVITY_FLAG_"}, value = {
             USER_ACTIVITY_FLAG_INDIRECT,
             USER_ACTIVITY_FLAG_NO_CHANGE_LIGHTS,
+            USER_ACTIVITY_FLAG_NO_BUTTON_LIGHTS,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface UserActivityFlag{}
@@ -498,6 +499,14 @@ public final class PowerManager {
      */
     @SystemApi
     public static final int USER_ACTIVITY_FLAG_INDIRECT = 1 << 1;
+
+    /**
+     * User activity flag: Certain hardware buttons are not supposed to
+     * activate hardware button illumination. This flag indicates a button
+     * event from one of those buttons.
+     * @hide
+     */
+    public static final int USER_ACTIVITY_FLAG_NO_BUTTON_LIGHTS = 1 << 2;
 
     /**
      * @hide
