@@ -20,10 +20,10 @@ import android.content.Context
 import android.database.ContentObserver
 import android.hardware.biometrics.common.AuthenticateReason
 import android.provider.Settings
-import com.android.systemui.common.coroutine.ConflatedCallbackFlow.conflatedCallbackFlow
 import com.android.systemui.dagger.qualifiers.Background
 import com.android.systemui.user.domain.interactor.SelectedUserInteractor
 import com.android.systemui.util.settings.SecureSettings
+import com.android.systemui.utils.coroutines.flow.conflatedCallbackFlow
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.awaitClose
