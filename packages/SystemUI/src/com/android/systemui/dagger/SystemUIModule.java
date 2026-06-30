@@ -564,8 +564,8 @@ public abstract class SystemUIModule {
     }
     @Provides
     @SysUISingleton
-    static BcSmartspaceConfigProvider provideBcSmartspaceConfigPlugin(FeatureFlags featureFlags) {
-        return new BcSmartspaceConfigProvider(featureFlags);
+    static BcSmartspaceConfigProvider provideBcSmartspaceConfigPlugin() {
+        return new BcSmartspaceConfigProvider();
     }
     @Provides
     @SysUISingleton
