@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "9d148357_a1ed2b64",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 10
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000053
+      },
+      "writtenOn": "2026-07-01T15:17:48Z",
+      "side": 1,
+      "message": "Doesn\u0027t seem to work without spoofing Pixel fingerprint via PIHooks",
+      "revId": "642033e75f4e1fb8c3126608fff05df19e66b18d",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
