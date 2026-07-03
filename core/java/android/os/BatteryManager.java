@@ -290,7 +290,7 @@ public class BatteryManager {
 
     /**
      * boolean value to indicate OEM fast charging
-     * {@hide}
+     * @hide
      */
     public static final String EXTRA_OEM_FAST_CHARGING = "oem_fast_charging";
 
