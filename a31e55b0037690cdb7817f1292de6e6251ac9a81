@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "72b346e6_de07226b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 5
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000178
+      },
+      "writtenOn": "2026-07-10T13:53:40Z",
+      "side": 1,
+      "message": "Hello, everyone. Please check this code:\n\n\n\nprivate void registerBatteryReceiver() {\n    mBatteryReceiver \u003d new BroadcastReceiver() {\n        @Override\n        public void onReceive(Context context, Intent intent) {\n            String action \u003d intent.getAction();\n            if (action \u003d\u003d null) return;\n\n            // 1. Attempt to get level from intent extras\n            int level \u003d intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);\n            \n            // 2. EDGE CASE FIX: If intent doesn\u0027t carry the level (e.g., POWER_CONNECTED),\n            // query the BatteryManager directly to get the real-time capacity.\n            if (level \u003d\u003d -1) {\n                BatteryManager bm \u003d (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);\n                if (bm !\u003d null) {\n                    level \u003d bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);\n                }\n            }\n\n            // 3. Fallback safety: Retain last known good level if query fails\n            if (level \u003c 0) {\n                level \u003d (mLastNotifiedLevel !\u003d -1) ? mLastNotifiedLevel : 0;\n            }\n            \n            /* \n             * Logic: \n             * - isStateChange: True for any event that isn\u0027t the continuous BATTERY_CHANGED \n             *   (Power connected, Level changed after wake, etc.) -\u003e Forces an update.\n             * - isSignificantLevelChange: True only if battery level jumps by 5% -\u003e Saves power.\n             */\n            boolean isStateChange \u003d !Intent.ACTION_BATTERY_CHANGED.equals(action);\n            boolean isSignificantLevelChange \u003d Math.abs(level - mLastNotifiedLevel) \u003e\u003d 5;\n\n            if (isStateChange || isSignificantLevelChange) {\n                mLastNotifiedLevel \u003d level;\n                handleEvent(action, level);\n            }\n        }\n    };\n\n    IntentFilter filter \u003d new IntentFilter();\n    filter.addAction(Intent.ACTION_BATTERY_CHANGED);\n    filter.addAction(\"android.intent.action.BATTERY_LEVEL_CHANGED\");\n    filter.addAction(Intent.ACTION_POWER_CONNECTED);\n    filter.addAction(Intent.ACTION_POWER_DISCONNECTED);\n    filter.addAction(Intent.ACTION_BATTERY_LOW);\n    filter.addAction(Intent.ACTION_BATTERY_OKAY);\n\n    // API 34+ Requirement: Protect the receiver from external intent injection\n    registerReceiver(mBatteryReceiver, filter, Context.RECEIVER_NOT_EXPORTED);\n}",
+      "revId": "a31e55b0037690cdb7817f1292de6e6251ac9a81",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
