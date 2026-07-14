@@ -16,6 +16,7 @@ import android.net.NetworkCapabilities;
 import android.os.Environment;
 import android.os.SystemProperties;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.internal.util.custom.CustomUtils;
@@ -33,6 +34,9 @@ import java.net.URL;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public final class AttestationService extends SystemService {
     private static final String TAG = AttestationService.class.getSimpleName();
@@ -99,6 +103,19 @@ public final class AttestationService extends SystemService {
         }
     }
 
+    private static boolean isValidProps(String props) {
+        if (TextUtils.isEmpty(props)) {
+            return false;
+        }
+
+        try {
+            return new JSONObject(props).length() > 0;
+        } catch (JSONException e) {
+            Log.e(TAG, "Fetched PIF data is not valid JSON", e);
+            return false;
+        }
+    }
+
     private boolean isInternetConnected() {
         ConnectivityManager cm =
                 (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -133,7 +150,7 @@ public final class AttestationService extends SystemService {
                         mContext.getContentResolver(), Settings.Secure.FETCHED_PIF);
                 String props = fetchProps();
 
-                if (props != null && !savedProps.equals(props)) {
+                if (isValidProps(props) && !TextUtils.equals(savedProps, props)) {
                     dlog("Found new props");
                     Settings.Secure.putString(
                             mContext.getContentResolver(), Settings.Secure.FETCHED_PIF, props);
