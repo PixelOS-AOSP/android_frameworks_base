@@ -140,7 +140,8 @@ public class PropImitationHooks {
         sNetflixModel = res.getString(R.string.config_netflixSpoofModel);
 
         sProcessName = processName;
-        sIsGms = packageName.equals(PACKAGE_GMS) && processName.equals(PROCESS_GMS_UNSTABLE);
+        final boolean isGms = packageName.equals(PACKAGE_GMS);
+        sIsGms = isGms && processName.equals(PROCESS_GMS_UNSTABLE);
         sIsFinsky = packageName.equals(PACKAGE_FINSKY);
         sIsPhotos = packageName.equals(PACKAGE_GPHOTOS);
 
@@ -149,7 +150,7 @@ public class PropImitationHooks {
          * Set custom model for Netflix
          * Set Pixel XL for Google Photos
          */
-        if (sIsGms || sIsFinsky) {
+        if (isGms || sIsFinsky) {
             if (!android.os.Process.isIsolated()) {
                 setPlayIntegrityProps(context);
             } else {
