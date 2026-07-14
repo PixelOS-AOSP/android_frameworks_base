@@ -41,7 +41,9 @@ import org.json.JSONObject;
 public final class AttestationService extends SystemService {
     private static final String TAG = AttestationService.class.getSimpleName();
     private static final String API =
-            Resources.getSystem().getString(com.android.internal.R.string.config_pifUpdateUrl);
+            Resources.getSystem()
+                    .getString(com.android.internal.R.string.config_pifUpdateUrl)
+                    .replace("{version}", SystemProperties.get("net.pixelos.version"));
 
     private static final String DATA_FILE = "gms_certified_props.json";
 
