@@ -301,17 +301,20 @@ public class PropImitationHooks {
             return false;
         }
 
-        // GMS doesn't have MANAGE_ACTIVITY_TASKS permission
+        // GMS and Finsky don't have MANAGE_ACTIVITY_TASKS permission
         final int callingUid = Binder.getCallingUid();
         final int gmsUid;
+        final int finskyUid;
         try {
             gmsUid = context.getPackageManager().getApplicationInfo(PACKAGE_GMS, 0).uid;
-            dlog("shouldBypassTaskPermission: gmsUid:" + gmsUid + " callingUid:" + callingUid);
+            finskyUid = context.getPackageManager().getApplicationInfo(PACKAGE_FINSKY, 0).uid;
+            dlog("shouldBypassTaskPermission: gmsUid:" + gmsUid
+                    + " finskyUid:" + finskyUid + " callingUid:" + callingUid);
         } catch (Exception e) {
-            Log.e(TAG, "shouldBypassTaskPermission: unable to get gms uid", e);
+            Log.e(TAG, "shouldBypassTaskPermission: unable to get gms/finsky uid", e);
             return false;
         }
-        return gmsUid == callingUid;
+        return gmsUid == callingUid || finskyUid == callingUid;
     }
 
     private static boolean isCallerPlayIntegrity() {
