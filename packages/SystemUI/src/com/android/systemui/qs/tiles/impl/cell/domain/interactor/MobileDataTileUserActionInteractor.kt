@@ -29,10 +29,11 @@ import com.android.systemui.qs.tiles.base.domain.model.QSTileInput
 import com.android.systemui.qs.tiles.base.shared.model.QSTileUserAction
 import com.android.systemui.qs.tiles.dialog.InternetDialogManager
 import com.android.systemui.qs.tiles.impl.cell.domain.model.MobileDataTileModel
-import com.android.systemui.res.R
+import com.android.systemui.qs.tiles.impl.cell.ui.compose.MobileDataEnableDialogContent
 import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.statusbar.connectivity.AccessPointController
-import com.android.systemui.statusbar.phone.SystemUIDialog
+import com.android.systemui.statusbar.phone.SystemUIDialogFactory
+import com.android.systemui.statusbar.phone.create
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionRepository
 import com.android.systemui.statusbar.pipeline.mobile.data.repository.MobileConnectionsRepository
 import javax.inject.Inject
@@ -45,7 +46,7 @@ constructor(
     @ShadeDisplayAware private val context: Context,
     private val mobileConnectionsRepository: MobileConnectionsRepository,
     private val qsTileIntentUserActionHandler: QSTileIntentUserInputHandler,
-    private val systemUIDialogFactory: SystemUIDialog.Factory,
+    private val systemUIDialogFactory: SystemUIDialogFactory,
     @Main val mainDispatcher: CoroutineDispatcher,
     private val dialogTransitionAnimator: DialogTransitionAnimator,
     private val internetDialogManager: InternetDialogManager,
@@ -82,7 +83,17 @@ constructor(
         val activeRepo = getDataRepo() ?: return
         // If mobile data is disabled, show a confirmation dialog to turn it on.
         if (!activeRepo.dataEnabled.value) {
-            withContext(mainDispatcher) { showEnableConfirmationDialog(expandable) }
+            val suppressDialog = Settings.Secure.getInt(
+                context.contentResolver,
+                PREF_KEY_SUPPRESS_MOBILE_DATA_DIALOG,
+                0,
+            ) == 1
+
+            if (suppressDialog) {
+                activeRepo.setDataEnabled(true)
+            } else {
+                withContext(mainDispatcher) { showEnableConfirmationDialog(expandable) }
+            }
         } else {
             // Otherwise, just turn it off without a dialog.
             activeRepo.setDataEnabled(false)
@@ -90,15 +101,23 @@ constructor(
     }
 
     private fun showEnableConfirmationDialog(expandable: Expandable?) {
-        val dialog: SystemUIDialog = systemUIDialogFactory.create()
-        dialog.setTitle(context.getString(R.string.mobile_data_enable_title))
-        dialog.setMessage(context.getString(R.string.mobile_data_enable_message))
-
-        dialog.setPositiveButton(R.string.mobile_data_enable_turn_on) { _, _ ->
-            getDataRepo()?.setDataEnabled(true)
-        }
-
-        dialog.setNegativeButton(android.R.string.cancel) { _, _ -> /* Do nothing */ }
+        val dialog =
+            systemUIDialogFactory.create(context = context) { dialog ->
+                MobileDataEnableDialogContent(
+                    onTurnOn = { suppressDialog ->
+                        if (suppressDialog) {
+                            Settings.Secure.putInt(
+                                context.contentResolver,
+                                PREF_KEY_SUPPRESS_MOBILE_DATA_DIALOG,
+                                1,
+                            )
+                        }
+                        getDataRepo()?.setDataEnabled(true)
+                        dialog.dismiss()
+                    },
+                    onCancel = { dialog.dismiss() },
+                )
+            }
 
         val controller = expandable?.dialogTransitionController()
         if (controller != null) {
@@ -122,5 +141,9 @@ constructor(
         return mobileConnectionsRepository.defaultDataSubId.value?.let {
             mobileConnectionsRepository.getRepoForSubId(it)
         }
+    }
+
+    companion object {
+        private const val PREF_KEY_SUPPRESS_MOBILE_DATA_DIALOG = "suppress_mobile_data_enable_dialog"
     }
 }
