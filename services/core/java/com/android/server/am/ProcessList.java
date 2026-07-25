@@ -2411,6 +2411,10 @@ public final class ProcessList extends ProcessListInternal
                     final IsolatedUidRange uidRange =
                         mAppIsolatedUidRangeAllocator.getIsolatedUidRangeLocked(
                                 app.info.processName, app.getHostingRecord().getDefiningUid());
+                    if (uidRange == null) {
+                        Slog.e(TAG_PROCESSES, "Failed to allocate isolated UID range for " + app.info.processName);
+                        return null;
+                    }
                     // Create the app-zygote and provide it with the UID-range it's allowed
                     // to setresuid/setresgid to.
                     firstUid = UserHandle.getUid(userId, uidRange.mFirstUid);
