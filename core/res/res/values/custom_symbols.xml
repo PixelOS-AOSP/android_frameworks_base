@@ -116,11 +116,11 @@
     <java-symbol type="bool" name="config_dt2sGestureEnabledByDefault" />
 
     <!-- Button and keyboard backlight brightness -->
-    <java-symbol type="dimen" name="config_buttonBrightnessSettingDefaultFloat" />
-    <java-symbol type="dimen" name="config_keyboardBrightnessSettingDefaultFloat" />
+    <java-symbol type="dimen" name="config_buttonBrightnessSettingDefaultFloat" id="0x010503b9" />
+    <java-symbol type="dimen" name="config_keyboardBrightnessSettingDefaultFloat" id="0x010503ba" />
 
     <!-- Status bar network traffic monitor -->
-    <java-symbol type="dimen" name="net_traffic_text_size" />
+    <java-symbol type="dimen" name="net_traffic_text_size" id="0x010503bb" />
     <java-symbol type="string" name="kilobitspersecond_short" />
     <java-symbol type="string" name="megabitspersecond_short" />
     <java-symbol type="string" name="kilobytespersecond_short" />
