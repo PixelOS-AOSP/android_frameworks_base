@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "baa117b7_32f2d00c",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-08-02T12:04:50Z",
+      "side": 1,
+      "message": "Fixed with https://review.pixelos.net/c/PixelOS-Devices/android_kernel_motorola_sm7325/+/10356",
+      "revId": "bd80f52e097c67b54677839ef5053798aa6425da",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
