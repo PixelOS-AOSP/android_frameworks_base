@@ -16,6 +16,24 @@
       "message": "wrong, we should do something similar to https://github.com/PixelOS-AOSP/android_packages_apps_Updater/blob/8b665b2948c4b69d5c6180224e15cc48c3008e06/app/src/main/res/values/strings.xml#L31-L33 instead.",
       "revId": "f35b52a271949423bfc362fd4620a40087dd9dd9",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "587030a3_be411b57",
+        "filename": "core/res/res/values/custom_config.xml",
+        "patchSetId": 1
+      },
+      "lineNbr": 139,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-08-11T08:05:44Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "49155121_af855666",
+      "revId": "f35b52a271949423bfc362fd4620a40087dd9dd9",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
