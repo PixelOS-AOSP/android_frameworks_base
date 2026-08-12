@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "4e245cdf_ddc1ce21",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 8
+      },
+      "lineNbr": 7,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-08-12T14:28:13Z",
+      "side": 1,
+      "message": "```suggestion\nconfig: Make PIF update URL adhere PixelOS version\n```",
+      "range": {
+        "startLine": 7,
+        "startChar": 8,
+        "endLine": 7,
+        "endChar": 60
+      },
+      "revId": "a9d0e373079651c3adae016cae93c3999a7c736b",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
