@@ -181,6 +181,10 @@ class DeviceSettingServiceConnection(
                         is ServiceConnectionStatus.Failed -> flowOf(null)
                     }
                 }
+                .catch { e ->
+                    Log.e(TAG, "Fail to get device setting config for $cachedDevice", e)
+                    emit(null)
+                }
                 .first()
         }
 
