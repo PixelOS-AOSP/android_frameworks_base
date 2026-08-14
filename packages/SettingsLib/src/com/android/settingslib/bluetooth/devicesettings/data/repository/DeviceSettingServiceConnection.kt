@@ -218,8 +218,8 @@ class DeviceSettingServiceConnection(
             Log.i(TAG, "Fail to get config", e)
             continuation.resume(null)
         } catch (e: RuntimeException) {
-            Log.w(TAG, "Provider rejected config request, treating as no config", e)
-            continuation.resume(null)
+            Log.w(TAG, "Provider rejected config request", e)
+            throw e
         }
     }
 
@@ -444,6 +444,7 @@ class DeviceSettingServiceConnection(
                         context.unbindService(serviceConnection)
                     } catch (e: IllegalArgumentException) {
                         Log.w(TAG, "Service already unbound for $intent", e)
+                        throw e
                     }
                 }
             }
