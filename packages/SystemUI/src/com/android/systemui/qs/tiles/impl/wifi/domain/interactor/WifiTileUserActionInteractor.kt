@@ -64,7 +64,7 @@ constructor(
         withContext(mainContext) {
             internetDialogManager.create(
                 aboveStatusBar = true,
-                false, /* canConfigMobileData */
+                accessPointController.canConfigMobileData(),
                 accessPointController.canConfigWifi(),
                 expandable,
             )
