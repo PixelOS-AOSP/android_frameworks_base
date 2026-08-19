@@ -52,6 +52,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import sun.misc.Unsafe;
+
 /**
  * @hide
  */
@@ -121,6 +123,29 @@ public class PropImitationHooks {
     private static volatile String sProcessName;
     private static volatile boolean sIsGms, sIsFinsky, sIsPhotos;
 
+    private static final Field OFFSET_FIELD;
+    private static final Unsafe UNSAFE;
+
+    static {
+        Unsafe unsafe = null;
+        Field offsetField = null;
+
+        try {
+            Field field = Unsafe.class.getDeclaredField("theUnsafe");
+            field.setAccessible(true);
+            unsafe = (Unsafe) field.get(null);
+            field.setAccessible(false);
+
+            offsetField = Field.class.getDeclaredField("offset");
+            offsetField.setAccessible(true);
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to initialize Unsafe", e);
+        }
+
+        UNSAFE = unsafe;
+        OFFSET_FIELD = offsetField;
+    }
+
     public static void setProps(Context context) {
         final String packageName = context.getPackageName();
         final String processName = Application.getProcessName();
@@ -168,6 +193,11 @@ public class PropImitationHooks {
     }
 
     private static void setPropValue(String key, String value) {
+        if (UNSAFE == null || OFFSET_FIELD == null) {
+            Log.e(TAG, "Unsafe is unavailable", new IllegalStateException());
+            return;
+        }
+
         try {
             dlog("Setting prop " + key + " to " + value.toString());
             Class clazz = Build.class;
@@ -178,7 +208,12 @@ public class PropImitationHooks {
             Field field = clazz.getDeclaredField(key);
             field.setAccessible(true);
             // Cast the value to int if it's an integer field, otherwise string.
-            field.set(null, field.getType().equals(Integer.TYPE) ? Integer.parseInt(value) : value);
+            long offset = OFFSET_FIELD.getInt(field);
+            if (field.getType().equals(Integer.TYPE)) {
+                UNSAFE.putInt(field.getDeclaringClass(), offset, Integer.parseInt(value));
+            } else {
+                UNSAFE.putObject(field.getDeclaringClass(), offset, value);
+            }
             field.setAccessible(false);
         } catch (Exception e) {
             Log.e(TAG, "Failed to set prop " + key, e);
