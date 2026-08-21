@@ -406,6 +406,20 @@ public class SenseProvider implements ServiceProvider {
         return service;
     }
 
+    private synchronized ISenseService getDaemon(int userId) {
+        if (mTestHalEnabled) {
+            final TestHal testHal = new TestHal(mContext, mSensorId);
+            testHal.setCallback(mHalResultController);
+            return testHal;
+        }
+
+        ISenseService service = getService(userId);
+        if (service == null) {
+            bindService(userId);
+        }
+        return service;
+    }
+
     @Override
     public boolean containsSensor(int sensorId) {
         return mSensorId == sensorId;
@@ -449,7 +463,9 @@ public class SenseProvider implements ServiceProvider {
 
     @Override
     public boolean isHardwareDetected(int sensorId) {
-        return getDaemon() != null;
+        // The sense service is spawned on demand, so a missing service does not
+        // mean that the hardware is unavailable.
+        return mTestHalEnabled || isServiceEnabled();
     }
 
     private boolean isGeneratedChallengeCacheValid() {
@@ -481,8 +497,8 @@ public class SenseProvider implements ServiceProvider {
     public void scheduleGenerateChallenge(int sensorId, int userId, @NonNull IBinder token,
             @NonNull IFaceServiceReceiver receiver, @NonNull String opPackageName) {
         mHandler.post(() -> {
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
                 try {
                     receiver.onChallengeGenerated(sensorId, userId, 0L);
                     return;
@@ -524,8 +540,8 @@ public class SenseProvider implements ServiceProvider {
     public void scheduleRevokeChallenge(int sensorId, int userId, @NonNull IBinder token,
             @NonNull String opPackageName, long challenge) {
         mHandler.post(() -> {
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
                 return;
             }
             final boolean shouldRevoke = decrementChallengeCount() == 0;
@@ -564,8 +580,8 @@ public class SenseProvider implements ServiceProvider {
             @NonNull FaceEnrollOptions options) {
         final long id = mRequestCounter.incrementAndGet();
         mHandler.post(() -> {
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
                 try {
                     receiver.onError(2, 0);
                     return;
@@ -639,8 +655,8 @@ public class SenseProvider implements ServiceProvider {
             int statsClient, boolean allowBackgroundAuthentication) {
         mHandler.post(() -> {
             final int userId = options.getUserId();
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
                 try {
                     receiver.onError(1008, 0, 1, 0);
                     return;
@@ -685,8 +701,8 @@ public class SenseProvider implements ServiceProvider {
     public void scheduleRemove(int sensorId, @NonNull IBinder token, int faceId, int userId,
             @NonNull IFaceServiceReceiver receiver, @NonNull String opPackageName) {
         mHandler.post(() -> {
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
                 try {
                     receiver.onError(1, 0);
                     return;
@@ -711,8 +727,8 @@ public class SenseProvider implements ServiceProvider {
     public void scheduleRemoveAll(int sensorId, @NonNull IBinder token, int userId,
             @NonNull IFaceServiceReceiver receiver, @NonNull String opPackageName) {
         mHandler.post(() -> {
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
                 try {
                     receiver.onError(1, 0);
                     return;
@@ -738,8 +754,8 @@ public class SenseProvider implements ServiceProvider {
     @Override
     public void scheduleResetLockout(int sensorId, int userId, @NonNull byte[] hardwareAuthToken) {
         mHandler.post(() -> {
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
             }
             if (getEnrolledFaces(sensorId, userId).isEmpty()) {
                 Slog.w(TAG, "Ignoring lockout reset, no templates enrolled for user: " + userId);
@@ -762,8 +778,8 @@ public class SenseProvider implements ServiceProvider {
             boolean enabled, @NonNull byte[] hardwareAuthToken,
             @NonNull IFaceServiceReceiver receiver, @NonNull String opPackageName) {
         mHandler.post(() -> {
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
                 return;
             }
             final List<Face> faces = getEnrolledFaces(sensorId, userId);
@@ -788,8 +804,8 @@ public class SenseProvider implements ServiceProvider {
     public void scheduleGetFeature(int sensorId, @NonNull IBinder token, int userId, int feature,
             @Nullable ClientMonitorCallbackConverter listener, @NonNull String opPackageName) {
         mHandler.post(() -> {
-            if (getDaemon() == null) {
-                bindService(mCurrentUserId);
+            if (getDaemon(userId) == null) {
+                bindService(userId);
                 if (listener != null) {
                     try {
                         listener.onError(1008, 0, 1, 0);
@@ -1055,10 +1071,7 @@ public class SenseProvider implements ServiceProvider {
     }
 
     private ISenseService getService(int userId) {
-        if (userId == -10000) {
-            scheduleUpdateActiveUserWithoutHandler(ActivityManager.getCurrentUser());
-        }
-        return mServices.get(mCurrentUserId);
+        return mServices.get(userId);
     }
 
     public boolean bindService(int userId) {
