@@ -29,6 +29,9 @@
     <!-- When the battery is low at first time, this is displayed to the user in a dialog.  The description of the low battery alert.  [CHAR LIMIT=NONE] [BACKUP_MESSAGE_ID: 5148725009653088790] -->
     <string name="battery_low_intro">Battery Saver turns on dark theme, restricts background activity, and delays notifications.</string>
 
+    <!-- Text of the low battery notification shown when Extreme Battery Saver is in aggressive mode, suggesting it instead. [CHAR LIMIT=NONE]-->
+    <string name="low_battery_notification_text_ebs">Turn on Extreme Battery Saver to extend battery life</string>
+
     <!-- A message that appears when the battery level is getting low in a dialog.  This is
         appended to the subtitle of the low battery alert.  "percentage" is the percentage of battery
         remaining [CHAR LIMIT=none]-->
@@ -74,6 +77,24 @@
 
     <!-- Battery saver notification dismiss action: Do not turn on battery saver. [CHAR LIMIT=NONE]-->
     <string name="battery_saver_dismiss_action">No thanks</string>
+
+    <!-- Title of the severe low battery notification, shown when the battery is about to run out. The placeholder is a localized percentage, e.g. "5%". [CHAR LIMIT=NONE]-->
+    <string name="severe_battery_notification_title"><xliff:g id="percentage" example="5%">%s</xliff:g> battery left</string>
+
+    <!-- Text of the severe low battery notification, which suggests turning on Extreme Battery Saver. [CHAR LIMIT=NONE]-->
+    <string name="severe_battery_notification_text">Turn on Extreme Battery Saver. This will pause all non-essential apps</string>
+
+    <!-- Text of the severe low battery notification shown when Battery Saver is already on or scheduled, offering to switch to Extreme Battery Saver. [CHAR LIMIT=NONE]-->
+    <string name="severe_battery_notification_switch_text">Switch to Extreme Battery Saver?\n\nThis will pause all non-essential apps and their notifications</string>
+
+    <!-- Notification action that switches to Extreme Battery Saver [CHAR LIMIT=30] -->
+    <string name="severe_low_battery_dialog_switch_action_text">Switch</string>
+
+    <!-- Title of the extreme low battery notification, shown right before the device shuts down due to critically low battery. [CHAR LIMIT=NONE]-->
+    <string name="extreme_low_battery_notification_title">Very low battery</string>
+
+    <!-- Text of the extreme low battery notification. [CHAR LIMIT=NONE]-->
+    <string name="extreme_low_battery_notification_text">Your phone will shut down if it\u2019s not charged soon</string>
 
     <!-- Secondary label for Battery Saver tile when Battery Saver is enabled. [CHAR LIMIT=20] -->
     <string name="standard_battery_saver_text">Standard</string>
