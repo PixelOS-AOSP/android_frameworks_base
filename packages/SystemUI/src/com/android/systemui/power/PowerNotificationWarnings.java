@@ -64,6 +64,7 @@ import com.android.internal.logging.UiEventLogger;
 import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 import com.android.settingslib.Utils;
 import com.android.settingslib.fuelgauge.BatterySaverUtils;
+import com.android.settingslib.utils.ThreadUtils;
 import com.android.systemui.animation.DialogCuj;
 import com.android.systemui.animation.DialogTransitionAnimator;
 import com.android.systemui.animation.Expandable;
@@ -105,19 +106,25 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
 
     private static final int SHOWING_NOTHING = 0;
     private static final int SHOWING_WARNING = 1;
+    private static final int SHOWING_SEVERE_WARNING = 2;
+    private static final int SHOWING_EXTREME_WARNING = 5;
     private static final int SHOWING_INVALID_CHARGER = 3;
     private static final int SHOWING_AUTO_SAVER_SUGGESTION = 4;
     private static final String[] SHOWING_STRINGS = {
         "SHOWING_NOTHING",
         "SHOWING_WARNING",
-        "SHOWING_SAVER",
+        "SHOWING_SEVERE_WARNING",
         "SHOWING_INVALID_CHARGER",
         "SHOWING_AUTO_SAVER_SUGGESTION",
+        "SHOWING_EXTREME_WARNING",
     };
 
     private static final String ACTION_SHOW_BATTERY_SAVER_SETTINGS = "PNW.batterySaverSettings";
     private static final String ACTION_START_SAVER = "PNW.startSaver";
     private static final String ACTION_DISMISSED_WARNING = "PNW.dismissedWarning";
+    private static final String ACTION_DISMISS_SEVERE_LOW_BATTERY_WARNING =
+            "PNW.dismissSevereLowBatteryWarning";
+    private static final String ACTION_START_FLIPENDO = "systemui.power.action.START_FLIPENDO";
     private static final String ACTION_CLICKED_TEMP_WARNING = "PNW.clickedTempWarning";
     private static final String ACTION_DISMISSED_TEMP_WARNING = "PNW.dismissedTempWarning";
     private static final String ACTION_CLICKED_THERMAL_SHUTDOWN_WARNING =
@@ -138,6 +145,10 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
 
     private static final String EXTRA_SCHEDULED_BY_PERCENTAGE =
             "extra_scheduled_by_percentage";
+
+    // Once the battery recovers to this level, the tiered low battery warning sections are
+    // reset so the notifications can trigger again on the next discharge.
+    private static final int SEVERE_SECTION_RESET_LEVEL = 30;
     public static final String BATTERY_SAVER_SCHEDULE_SCREEN_INTENT_ACTION =
             "com.android.settings.BATTERY_SAVER_SCHEDULE_SETTINGS";
 
@@ -171,6 +182,16 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
     private boolean mShowAutoSaverSuggestion;
     private boolean mPlaySound;
     private boolean mInvalidCharger;
+
+    // Section guards for the tiered low battery notifications (low / severe / extreme). They
+    // track which tier has been entered or dismissed so each notification is only shown once
+    // per discharge "section", and get reset once the battery recovers above the section level.
+    private int mExtremeLowBatteryWarningLevel;
+    @VisibleForTesting boolean mLowBatterySectionEntered;
+    @VisibleForTesting boolean mLowBatteryNotificationCancelled;
+    @VisibleForTesting boolean mSevereLowBatterySectionEntered;
+    @VisibleForTesting boolean mSevereLowBatteryNotificationCancelled;
+    @VisibleForTesting boolean mExtremeLowBatterySectionEntered;
     private SystemUIDialog mSaverConfirmation;
     private SystemUIDialog mSaverEnabledConfirmation;
     private boolean mHighTempWarning;
@@ -211,6 +232,8 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
         mUserTracker = userTracker;
         mUseExtraSaverConfirmation =
                 mContext.getResources().getBoolean(R.bool.config_extra_battery_saver_confirmation);
+        mExtremeLowBatteryWarningLevel = mContext.getResources().getInteger(
+                com.android.internal.R.integer.config_extremeLowBatteryWarningLevel);
     }
 
     @Override
@@ -227,6 +250,11 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
         pw.println(mThermalShutdownDialog != null ? "not null" : null);
         pw.print("mUsbHighTempDialog=");
         pw.println(mUsbHighTempDialog != null ? "not null" : null);
+        pw.print("mExtremeLowBatteryWarningLevel=");
+        pw.println(mExtremeLowBatteryWarningLevel);
+        pw.print("mLowBatterySectionEntered="); pw.println(mLowBatterySectionEntered);
+        pw.print("mSevereLowBatterySectionEntered="); pw.println(mSevereLowBatterySectionEntered);
+        pw.print("mExtremeLowBatterySectionEntered="); pw.println(mExtremeLowBatterySectionEntered);
     }
 
     private int getLowBatteryAutoTriggerDefaultLevel() {
@@ -258,8 +286,7 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
             showInvalidChargerNotification();
             mShowing = SHOWING_INVALID_CHARGER;
         } else if (mWarning) {
-            showWarningNotification();
-            mShowing = SHOWING_WARNING;
+            updateTieredLowBatteryWarning();
         } else if (mShowAutoSaverSuggestion) {
             // Once we showed the notification, don't show it again until it goes SHOWING_NOTHING.
             // This shouldn't be needed, because we have a delete intent on this notification
@@ -272,10 +299,107 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
         } else {
             mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_BAD_CHARGER, UserHandle.ALL);
             mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_LOW, UserHandle.ALL);
+            mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_SEVERE_LOW, UserHandle.ALL);
+            mNoMan.cancelAsUser(
+                    TAG_BATTERY, SystemMessage.NOTE_POWER_EXTREME_LOW, UserHandle.ALL);
             mNoMan.cancelAsUser(TAG_AUTO_SAVER,
                     SystemMessage.NOTE_AUTO_SAVER_SUGGESTION, UserHandle.ALL);
+            resetLowBatterySections();
             mShowing = SHOWING_NOTHING;
         }
+    }
+
+    /**
+     * Shows (or escalates to) the appropriate tier of low battery warning based on the current
+     * battery level: normal, severe or extreme (device about to shut down).
+     */
+    @VisibleForTesting
+    void updateTieredLowBatteryWarning() {
+        final int level = mCurrentBatterySnapshot != null
+                ? mCurrentBatterySnapshot.getBatteryLevel() : mBatteryLevel;
+        final int severeThreshold = mCurrentBatterySnapshot != null
+                ? mCurrentBatterySnapshot.getSevereLevelThreshold()
+                : Integer.MAX_VALUE;
+
+        // Reset the section guards once the battery has recovered.
+        if ((mLowBatterySectionEntered || mLowBatteryNotificationCancelled
+                || mSevereLowBatterySectionEntered || mSevereLowBatteryNotificationCancelled)
+                && level >= SEVERE_SECTION_RESET_LEVEL) {
+            resetLowBatterySections();
+        }
+        if (mExtremeLowBatterySectionEntered && level > mExtremeLowBatteryWarningLevel) {
+            if (DEBUG) Slog.d(TAG, "reset section guard for extreme low. batteryLevel=" + level);
+            mExtremeLowBatterySectionEntered = false;
+            mNoMan.cancelAsUser(
+                    TAG_BATTERY, SystemMessage.NOTE_POWER_EXTREME_LOW, UserHandle.ALL);
+        }
+
+        if (level <= mExtremeLowBatteryWarningLevel) {
+            if (!mExtremeLowBatterySectionEntered) {
+                showExtremeLowBatteryNotification();
+                mExtremeLowBatterySectionEntered = true;
+            }
+            mShowing = SHOWING_EXTREME_WARNING;
+        } else if (level <= severeThreshold) {
+            if (canShowSevereLowBatteryNotification()
+                    && !mSevereLowBatteryNotificationCancelled) {
+                showSevereLowBatteryNotification(level);
+                mSevereLowBatterySectionEntered = true;
+            } else {
+                // Fall back to the regular low battery notification, e.g. when the Extreme
+                // Battery Saver reminder is disabled by config or Flipendo is already enabled.
+                showWarningNotification();
+                mLowBatterySectionEntered = true;
+            }
+            mShowing = SHOWING_SEVERE_WARNING;
+        } else {
+            showWarningNotification();
+            mLowBatterySectionEntered = true;
+            mShowing = SHOWING_WARNING;
+        }
+    }
+
+    private void resetLowBatterySections() {
+        if (DEBUG) Slog.d(TAG, "resetting low/severe low battery sections");
+        mLowBatterySectionEntered = false;
+        mLowBatteryNotificationCancelled = false;
+        mSevereLowBatterySectionEntered = false;
+        mSevereLowBatteryNotificationCancelled = false;
+    }
+
+    /**
+     * Whether the severe low battery notification may be shown. Mirrors the gating done for the
+     * regular low battery notification: no reminder when disabled by the user, when Battery Saver
+     * is scheduled "by percentage", or when Battery Saver is already active.
+     */
+    private boolean canShowSevereLowBatteryNotification() {
+        if (!mContext.getResources().getBoolean(
+                R.bool.config_show_extreme_battery_saver_reminder)) {
+            if (DEBUG) Slog.d(TAG, "severe notification skipped: EBS reminder config disabled");
+            return false;
+        }
+        if (!isReminderEnabled()) {
+            if (DEBUG) Slog.d(TAG, "severe notification skipped: reminder disabled");
+            return false;
+        }
+        if (isScheduledByPercentage()) {
+            if (DEBUG) Slog.d(TAG, "severe notification skipped: scheduled by percentage");
+            return false;
+        }
+        if (mPowerMan.isPowerSaveMode()) {
+            if (DEBUG) Slog.d(TAG, "severe notification skipped: power save mode");
+            return false;
+        }
+        if (FlipendoUtils.isFlipendoEnabled(mContext.getContentResolver())) {
+            if (DEBUG) Slog.d(TAG, "severe notification skipped: EBS already enabled");
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isReminderEnabled() {
+        return Settings.Global.getInt(mContext.getContentResolver(),
+                Global.LOW_POWER_MODE_REMINDER_ENABLED, 1) != 0;
     }
 
     private void showInvalidChargerNotification() {
@@ -296,6 +420,9 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
     }
 
     protected void showWarningNotification() {
+        // De-escalate: cancel the severe/extreme notifications if a lower tier is now showing.
+        mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_SEVERE_LOW, UserHandle.ALL);
+        mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_EXTREME_LOW, UserHandle.ALL);
         if (isScheduledByPercentage()) {
             return;
         }
@@ -303,8 +430,11 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
         final String percentage = NumberFormat.getPercentInstance()
                 .format((double) mCurrentBatterySnapshot.getBatteryLevel() / 100.0);
         final String title = mContext.getString(R.string.battery_low_title);
-        final String contentText = mContext.getString(
-                R.string.battery_low_description, percentage);
+        final boolean flipendoAggressive =
+                FlipendoUtils.isFlipendoAggressive(mContext.getContentResolver());
+        final String contentText = flipendoAggressive
+                ? mContext.getString(R.string.low_battery_notification_text_ebs)
+                : mContext.getString(R.string.battery_low_description, percentage);
 
         final Notification.Builder nb =
                 new Notification.Builder(mContext, NotificationChannels.BATTERY)
@@ -318,7 +448,11 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
                         .setDeleteIntent(pendingBroadcast(ACTION_DISMISSED_WARNING))
                         .setStyle(new Notification.BigTextStyle().bigText(contentText))
                         .setVisibility(Notification.VISIBILITY_PUBLIC);
-        if (hasBatterySettings()) {
+        if (flipendoAggressive && mKeyguard.isKeyguardLocked()) {
+            nb.setContentIntent(PendingIntent.getActivity(mContext, 0 /* requestCode */,
+                    settings(Settings.ACTION_BATTERY_SAVER_SETTINGS),
+                    FLAG_IMMUTABLE));
+        } else if (hasBatterySettings()) {
             nb.setContentIntent(pendingBroadcast(ACTION_SHOW_BATTERY_SAVER_SETTINGS));
         }
         // Make the notification red if the percentage goes below a certain amount or the time
@@ -329,7 +463,8 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
             nb.setColor(Utils.getColorAttrDefaultColor(mContext, android.R.attr.colorError));
         }
 
-        if (!mPowerMan.isPowerSaveMode()) {
+        if (!mPowerMan.isPowerSaveMode() && !(flipendoAggressive
+                && mKeyguard.isKeyguardLocked())) {
             nb.addAction(0, mContext.getString(R.string.battery_saver_dismiss_action),
                     pendingBroadcast(ACTION_DISMISSED_WARNING));
             nb.addAction(0,
@@ -342,6 +477,93 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
         final Notification n = nb.build();
         mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_BAD_CHARGER, UserHandle.ALL);
         mNoMan.notifyAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_LOW, n, UserHandle.ALL);
+    }
+
+    /**
+     * Shows the severe low battery notification: suggests turning on (or switching to) Extreme
+     * Battery Saver before the device runs out of power.
+     *
+     * <p>When Battery Saver is already active or scheduled by percentage, the notification offers
+     * to <em>switch</em> to Extreme Battery Saver instead of turning it on.
+     */
+    @VisibleForTesting
+    void showSevereLowBatteryNotification(int batteryLevel) {
+        if (DEBUG) Slog.d(TAG, "showing severe low battery notification: level=" + batteryLevel);
+        final String percentage = NumberFormat.getPercentInstance()
+                .format((double) batteryLevel / 100.0);
+        final boolean switchToEbs = isScheduledByPercentage() || mPowerMan.isPowerSaveMode();
+        final String title = mContext.getString(R.string.severe_battery_notification_title,
+                percentage);
+        final String contentText = mContext.getString(switchToEbs
+                ? R.string.severe_battery_notification_switch_text
+                : R.string.severe_battery_notification_text);
+
+        // Escalate: cancel the lower tier notifications.
+        mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_LOW, UserHandle.ALL);
+        mLowBatteryNotificationCancelled = true;
+
+        final Notification.Builder nb =
+                new Notification.Builder(mContext, NotificationChannels.BATTERY)
+                        .setSmallIcon(R.drawable.ic_power_saver)
+                        .setWhen(0)
+                        .setShowWhen(false)
+                        .setContentText(contentText)
+                        .setContentTitle(title)
+                        .setOnlyAlertOnce(true)
+                        .setDeleteIntent(pendingBroadcast(
+                                ACTION_DISMISS_SEVERE_LOW_BATTERY_WARNING))
+                        .setStyle(new Notification.BigTextStyle().bigText(contentText))
+                        .setVisibility(Notification.VISIBILITY_PUBLIC)
+                        .setLocalOnly(true);
+        if (mKeyguard.isKeyguardLocked()) {
+            nb.setContentIntent(PendingIntent.getActivity(mContext, 0 /* requestCode */,
+                    settings(Settings.ACTION_BATTERY_SAVER_SETTINGS),
+                    FLAG_IMMUTABLE));
+        } else {
+            nb.addAction(0 /* icon */,
+                    mContext.getString(switchToEbs
+                            ? R.string.severe_low_battery_dialog_switch_action_text
+                            : R.string.battery_saver_start_action),
+                    pendingBroadcast(ACTION_START_FLIPENDO));
+        }
+        NotificationUtils.overrideNotificationAppName(mContext, nb, false);
+        final Notification n = nb.build();
+        mNoMan.notifyAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_SEVERE_LOW, n, UserHandle.ALL);
+    }
+
+    /**
+     * Shows the extreme low battery notification: informs the user that the device is about to
+     * shut down unless it is charged immediately.
+     */
+    @VisibleForTesting
+    void showExtremeLowBatteryNotification() {
+        if (DEBUG) Slog.d(TAG, "showing extreme low battery notification");
+        final String title = mContext.getString(R.string.extreme_low_battery_notification_title);
+        final String contentText =
+                mContext.getString(R.string.extreme_low_battery_notification_text);
+
+        // Escalate: cancel the lower tier notifications.
+        mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_LOW, UserHandle.ALL);
+        mLowBatteryNotificationCancelled = true;
+        mNoMan.cancelAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_SEVERE_LOW, UserHandle.ALL);
+        mSevereLowBatteryNotificationCancelled = true;
+
+        final Notification.Builder nb =
+                new Notification.Builder(mContext, NotificationChannels.BATTERY)
+                        .setSmallIcon(R.drawable.ic_power_low)
+                        .setWhen(0)
+                        .setShowWhen(false)
+                        .setContentText(contentText)
+                        .setContentTitle(title)
+                        .setOnlyAlertOnce(true)
+                        .setColor(Utils.getColorAttrDefaultColor(mContext,
+                                android.R.attr.colorError))
+                        .setStyle(new Notification.BigTextStyle().bigText(contentText))
+                        .setVisibility(Notification.VISIBILITY_PUBLIC)
+                        .setLocalOnly(true);
+        NotificationUtils.overrideNotificationAppName(mContext, nb, false);
+        final Notification n = nb.build();
+        mNoMan.notifyAsUser(TAG_BATTERY, SystemMessage.NOTE_POWER_EXTREME_LOW, n, UserHandle.ALL);
     }
 
     /**
@@ -618,6 +840,22 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
     }
 
     @Override
+    public void showSevereLowBatteryWarning(boolean playSound) {
+        Slog.i(TAG, "show severe low battery warning: level=" + mBatteryLevel
+                + " playSound=" + playSound);
+        mPlaySound = playSound;
+        mWarning = true;
+        updateNotification();
+    }
+
+    @Override
+    public void showExtremeLowBatteryWarning() {
+        Slog.i(TAG, "show extreme low battery warning: level=" + mBatteryLevel);
+        mWarning = true;
+        updateNotification();
+    }
+
+    @Override
     public void dismissInvalidChargerWarning() {
         dismissInvalidChargerNotification();
     }
@@ -828,6 +1066,8 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
             filter.addAction(ACTION_SHOW_BATTERY_SAVER_SETTINGS);
             filter.addAction(ACTION_START_SAVER);
             filter.addAction(ACTION_DISMISSED_WARNING);
+            filter.addAction(ACTION_DISMISS_SEVERE_LOW_BATTERY_WARNING);
+            filter.addAction(ACTION_START_FLIPENDO);
             filter.addAction(ACTION_CLICKED_TEMP_WARNING);
             filter.addAction(ACTION_DISMISSED_TEMP_WARNING);
             filter.addAction(ACTION_CLICKED_THERMAL_SHUTDOWN_WARNING);
@@ -863,6 +1103,18 @@ public class PowerNotificationWarnings implements PowerUI.WarningsUI {
                 logEvent(BatteryWarningEvents
                         .LowBatteryWarningEvent.LOW_BATTERY_NOTIFICATION_CANCEL);
                 dismissLowBatteryWarning();
+            } else if (action.equals(ACTION_DISMISS_SEVERE_LOW_BATTERY_WARNING)) {
+                if (DEBUG) Slog.d(TAG, "dismissing severe low battery notification");
+                mSevereLowBatteryNotificationCancelled = true;
+                mNoMan.cancelAsUser(
+                        TAG_BATTERY, SystemMessage.NOTE_POWER_SEVERE_LOW, UserHandle.ALL);
+            } else if (action.equals(ACTION_START_FLIPENDO)) {
+                if (DEBUG) Slog.d(TAG, "starting Flipendo (Extreme Battery Saver)");
+                // The content provider call blocks, so run off the main thread.
+                ThreadUtils.postOnBackgroundThread(
+                        () -> FlipendoUtils.enableFlipendo(mContext));
+                mNoMan.cancelAsUser(
+                        TAG_BATTERY, SystemMessage.NOTE_POWER_SEVERE_LOW, UserHandle.ALL);
             } else if (ACTION_CLICKED_TEMP_WARNING.equals(action)) {
                 dismissHighTemperatureWarningInternal();
                 showHighTemperatureDialog();

@@ -99,11 +99,13 @@ public class PowerUI implements
 
     private int mLowBatteryAlertCloseLevel;
     private final int[] mLowBatteryReminderLevels = new int[2];
+    @VisibleForTesting int mExtremeLowBatteryReminderLevel;
 
     private long mScreenOffTime = -1;
 
     @VisibleForTesting boolean mLowWarningShownThisChargeCycle;
     @VisibleForTesting boolean mSevereWarningShownThisChargeCycle;
+    @VisibleForTesting boolean mExtremeWarningShownThisChargeCycle;
     @VisibleForTesting BatteryStateSnapshot mCurrentBatteryStateSnapshot;
     @VisibleForTesting BatteryStateSnapshot mLastBatteryStateSnapshot;
     @VisibleForTesting IThermalService mThermalService;
@@ -252,6 +254,8 @@ public class PowerUI implements
 
         mLowBatteryReminderLevels[0] = warnLevel;
         mLowBatteryReminderLevels[1] = critLevel;
+        mExtremeLowBatteryReminderLevel = mContext.getResources().getInteger(
+                com.android.internal.R.integer.config_extremeLowBatteryWarningLevel);
         mLowBatteryAlertCloseLevel = mLowBatteryReminderLevels[0]
                 + mContext.getResources().getInteger(
                         com.android.internal.R.integer.config_lowBatteryCloseWarningBump);
@@ -439,6 +443,7 @@ public class PowerUI implements
         if (currentSnapshot.getBatteryLevel() >= CHARGE_CYCLE_PERCENT_RESET) {
             mLowWarningShownThisChargeCycle = false;
             mSevereWarningShownThisChargeCycle = false;
+            mExtremeWarningShownThisChargeCycle = false;
             if (DEBUG) {
                 Slog.d(TAG, "Charge cycle reset! Can show warnings again");
             }
@@ -448,13 +453,18 @@ public class PowerUI implements
                 || lastSnapshot.getPlugged();
 
         if (shouldShowHybridWarning(currentSnapshot)) {
-            mWarnings.showLowBatteryWarning(playSound);
+            showWarningForLevel(currentSnapshot, playSound);
             // mark if we've already shown a warning this cycle. This will prevent the notification
             // trigger from spamming users by only showing low/critical warnings once per cycle
             if (currentSnapshot.getBatteryLevel() <= currentSnapshot.getSevereLevelThreshold()) {
                 mSevereWarningShownThisChargeCycle = true;
                 mLowWarningShownThisChargeCycle = true;
-                if (DEBUG) {
+                if (currentSnapshot.getBatteryLevel() <= mExtremeLowBatteryReminderLevel) {
+                    mExtremeWarningShownThisChargeCycle = true;
+                    if (DEBUG) {
+                        Slog.d(TAG, "Extreme warning marked as shown this cycle");
+                    }
+                } else {
                     Slog.d(TAG, "Severe warning marked as shown this cycle");
                 }
             } else {
@@ -471,6 +481,18 @@ public class PowerUI implements
                 Slog.d(TAG, "Updating warning");
             }
             mWarnings.updateLowBatteryWarning();
+        }
+    }
+
+    @VisibleForTesting
+    void showWarningForLevel(BatteryStateSnapshot snapshot, boolean playSound) {
+        final int level = snapshot.getBatteryLevel();
+        if (level <= mExtremeLowBatteryReminderLevel) {
+            mWarnings.showExtremeLowBatteryWarning();
+        } else if (level <= snapshot.getSevereLevelThreshold()) {
+            mWarnings.showSevereLowBatteryWarning(playSound);
+        } else {
+            mWarnings.showLowBatteryWarning(playSound);
         }
     }
 
@@ -492,7 +514,12 @@ public class PowerUI implements
         final boolean canShowSevereWarning = !mSevereWarningShownThisChargeCycle
                 && snapshot.getBatteryLevel() <= snapshot.getSevereLevelThreshold();
 
-        final boolean canShow = canShowWarning || canShowSevereWarning;
+        // Always allow escalating to the extreme warning (device about to shut down), even if a
+        // lower tier was already shown this charge cycle. It is only shown once per cycle.
+        final boolean canShowExtremeWarning = !mExtremeWarningShownThisChargeCycle
+                && snapshot.getBatteryLevel() <= mExtremeLowBatteryReminderLevel;
+
+        final boolean canShow = canShowWarning || canShowSevereWarning || canShowExtremeWarning;
 
         if (DEBUG) {
             Slog.d(TAG, "Enhanced trigger is: " + canShow + "\nwith battery snapshot:"
@@ -517,7 +544,7 @@ public class PowerUI implements
                 || lastSnapshot.getPlugged();
 
         if (shouldShowLowBatteryWarning(currentSnapshot, lastSnapshot)) {
-            mWarnings.showLowBatteryWarning(playSound);
+            showWarningForLevel(currentSnapshot, playSound);
         } else if (shouldDismissLowBatteryWarning(currentSnapshot, lastSnapshot)) {
             mWarnings.dismissLowBatteryWarning();
         } else {
@@ -709,6 +736,18 @@ public class PowerUI implements
         void dismissLowBatteryWarning();
 
         void showLowBatteryWarning(boolean playSound);
+
+        /**
+         * Shows a severe low battery warning, which more aggressively suggests turning on
+         * Battery Saver before the device runs out of power.
+         */
+        void showSevereLowBatteryWarning(boolean playSound);
+
+        /**
+         * Shows an extreme low battery warning, informing the user that the device is about to
+         * shut down due to critically low battery.
+         */
+        void showExtremeLowBatteryWarning();
 
         void dismissInvalidChargerWarning();
 
