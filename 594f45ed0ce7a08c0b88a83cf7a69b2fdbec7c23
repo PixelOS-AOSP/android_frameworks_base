@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7085997a_ca8af680",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-08-28T17:50:16Z",
+      "side": 1,
+      "message": "Seems to be working fine on Moto Edge 30",
+      "revId": "594f45ed0ce7a08c0b88a83cf7a69b2fdbec7c23",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
