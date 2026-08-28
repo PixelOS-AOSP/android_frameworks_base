@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "b100b046_c2408bbe",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 8
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-08-28T18:06:09Z",
+      "side": 1,
+      "message": "Unnecessary changes on packages/SystemUI/res/values/strings.xml",
+      "revId": "ab606874cabc841205a9c72ec24ec74e95f40c30",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
