@@ -37,6 +37,29 @@
     {
       "unresolved": true,
       "key": {
+        "uuid": "26e56e20_72233739",
+        "filename": "packages/SystemUI/src/com/android/systemui/qs/tiles/impl/cell/domain/interactor/MobileDataTileUserActionInteractor.kt",
+        "patchSetId": 4
+      },
+      "lineNbr": 113,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-08-28T17:52:17Z",
+      "side": 1,
+      "message": "This should not be used here.",
+      "range": {
+        "startLine": 109,
+        "startChar": 27,
+        "endLine": 113,
+        "endChar": 29
+      },
+      "revId": "0b1ef68f4238c61b77cb651ea3acd8b06d3631fd",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": true,
+      "key": {
         "uuid": "70e6aaca_a7992165",
         "filename": "packages/SystemUI/src/com/android/systemui/qs/tiles/impl/cell/domain/interactor/MobileDataTileUserActionInteractor.kt",
         "patchSetId": 4
