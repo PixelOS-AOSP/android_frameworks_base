@@ -16,6 +16,40 @@
       "message": "keep both changes separate.",
       "revId": "0b1ef68f4238c61b77cb651ea3acd8b06d3631fd",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "88a8b49c_4e782051",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-08-28T11:01:57Z",
+      "side": 1,
+      "message": "Make the dialog to not pop up for 24hours instead.",
+      "revId": "0b1ef68f4238c61b77cb651ea3acd8b06d3631fd",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "70e6aaca_a7992165",
+        "filename": "packages/SystemUI/src/com/android/systemui/qs/tiles/impl/cell/domain/interactor/MobileDataTileUserActionInteractor.kt",
+        "patchSetId": 4
+      },
+      "lineNbr": 147,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-08-28T11:01:57Z",
+      "side": 1,
+      "message": "Move to Settings.java",
+      "revId": "0b1ef68f4238c61b77cb651ea3acd8b06d3631fd",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
