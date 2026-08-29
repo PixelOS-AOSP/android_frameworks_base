@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "86f2d7b5_76eb3afb",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-08-29T14:03:06Z",
+      "side": 1,
+      "message": "This can be improved, but yes I like this way.",
+      "revId": "c12b5bfd8201c80b4d70e45292a89f9dfddf5fe0",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
