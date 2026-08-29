@@ -24,6 +24,11 @@
 
     <integer name="dock_enter_exit_duration">250</integer>
 
+    <!-- The default position of the volume dialog on the screen.
+         See com.android.systemui.volume.dialog.VolumeDialog.
+         Value 21 corresponds to RIGHT|CENTER_VERTICAL. -->
+    <integer name="volume_dialog_gravity">21</integer>
+
     <!-- The time it takes for the over scroll release animation to complete, in milli seconds.  -->
     <integer name="lockscreen_shade_over_scroll_release_duration">0</integer>
 

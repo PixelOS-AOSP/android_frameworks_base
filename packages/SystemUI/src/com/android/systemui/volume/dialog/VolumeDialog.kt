@@ -18,7 +18,6 @@ package com.android.systemui.volume.dialog
 
 import android.content.Context
 import android.database.ContentObserver
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -58,16 +57,27 @@ constructor(
 
     private var volumePanelOnLeft: Boolean = false
 
+    private fun isVolumePanelOnLeft(): Boolean {
+        val defaultGravity =
+            Gravity.getAbsoluteGravity(
+                context.resources.getInteger(R.integer.volume_dialog_gravity),
+                context.resources.configuration.layoutDirection,
+            )
+        val defaultValue =
+            if ((defaultGravity and Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.LEFT) 1 else 0
+
+        return Settings.Secure.getIntForUser(
+            context.contentResolver,
+            Settings.Secure.VOLUME_PANEL_ON_LEFT,
+            defaultValue,
+            UserHandle.USER_CURRENT,
+        ) != 0
+    }
+
     private val volumePanelOnLeftObserver =
         object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
-                val onLeft =
-                    Settings.Secure.getIntForUser(
-                        context.contentResolver,
-                        Settings.Secure.VOLUME_PANEL_ON_LEFT,
-                        0,
-                        UserHandle.USER_CURRENT
-                    ) != 0
+                val onLeft = isVolumePanelOnLeft()
 
                 if (volumePanelOnLeft != onLeft) {
                     volumePanelOnLeft = onLeft
@@ -150,10 +160,7 @@ constructor(
             volumePanelOnLeftObserver,
             UserHandle.USER_ALL
         )
-        volumePanelOnLeft = Settings.Secure.getIntForUser(
-            context.contentResolver, Settings.Secure.VOLUME_PANEL_ON_LEFT,
-            0, UserHandle.USER_CURRENT
-        ) != 0
+        volumePanelOnLeft = isVolumePanelOnLeft()
         applyLayoutAndGravity()
     }
 
