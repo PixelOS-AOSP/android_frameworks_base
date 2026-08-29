@@ -66,9 +66,18 @@ constructor(
                 attributes.apply {
                     title = "VolumeDialog" // Not the same as Window#setTitle
                 }
+            val configuredGravity =
+                getAbsoluteGravity(
+                    context.resources.getInteger(R.integer.volume_dialog_gravity),
+                    context.resources.configuration.layoutDirection,
+                )
+            val volumePanelOnLeft =
+                (configuredGravity and Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.LEFT
+            val side = if (volumePanelOnLeft) Gravity.START else Gravity.END
+
             if (isVolumeDialogVertical) {
                 setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                setGravity(Gravity.END)
+                setGravity(side)
             } else {
                 setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 setGravity(Gravity.TOP or Gravity.END)
@@ -76,6 +85,8 @@ constructor(
         }
         setCancelable(false)
         setCanceledOnTouchOutside(false)
+
+
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
