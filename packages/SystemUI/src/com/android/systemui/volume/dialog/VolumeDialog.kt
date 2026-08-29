@@ -50,6 +50,32 @@ constructor(
         fun create(isVolumeDialogVertical: Boolean): VolumeDialog
     }
 
+    private fun applyLayoutAndGravity() {
+        val win = window ?: return
+        val configuredGravity =
+            Gravity.getAbsoluteGravity(
+                context.resources.getInteger(R.integer.volume_dialog_gravity),
+                context.resources.configuration.layoutDirection,
+            )
+        val volumePanelOnLeft =
+            (configuredGravity and Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.LEFT
+        val side = if (volumePanelOnLeft) Gravity.START else Gravity.END
+
+        if (isVolumeDialogVertical) {
+            win.setLayout(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            win.setGravity(side)
+        } else {
+            win.setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+            win.setGravity(Gravity.TOP or side)
+        }
+    }
+
     init {
         with(window!!) {
             addFlags(
@@ -66,13 +92,6 @@ constructor(
                 attributes.apply {
                     title = "VolumeDialog" // Not the same as Window#setTitle
                 }
-            if (isVolumeDialogVertical) {
-                setLayout(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                setGravity(Gravity.END)
-            } else {
-                setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                setGravity(Gravity.TOP or Gravity.END)
-            }
         }
         setCancelable(false)
         setCanceledOnTouchOutside(false)
@@ -95,6 +114,11 @@ constructor(
                 awaitCancellation()
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        applyLayoutAndGravity()
     }
 
     /**
