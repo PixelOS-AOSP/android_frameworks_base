@@ -135,7 +135,7 @@ public final class AttestationService extends SystemService {
                         mContext.getContentResolver(), Settings.Secure.FETCHED_PIF);
                 String props = fetchProps();
 
-                if (props != null && !savedProps.equals(props)) {
+                if (props != null && !props.equals(savedProps)) {
                     dlog("Found new props");
                     Settings.Secure.putString(
                             mContext.getContentResolver(), Settings.Secure.FETCHED_PIF, props);
