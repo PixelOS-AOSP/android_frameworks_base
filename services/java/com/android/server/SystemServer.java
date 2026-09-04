@@ -227,7 +227,6 @@ import com.android.server.people.PeopleService;
 import com.android.server.permission.access.AccessCheckingService;
 import com.android.server.personalcontext.PersonalContextManagerService;
 import com.android.server.pinner.PinnerService;
-import com.android.server.custom.AttestationService;
 import com.android.server.pm.ApexManager;
 import com.android.server.pm.ApexSystemServiceInfo;
 import com.android.server.pm.BackgroundInstallControlService;
@@ -2915,11 +2914,6 @@ public final class SystemServer implements Dumpable {
 
             t.traceBegin("StartHealthService");
             mSystemServiceManager.startService(HealthInterfaceService.class);
-            t.traceEnd();
-
-            // AttestationService
-            t.traceBegin("AttestationService");
-            mSystemServiceManager.startService(AttestationService.class);
             t.traceEnd();
         }
 
