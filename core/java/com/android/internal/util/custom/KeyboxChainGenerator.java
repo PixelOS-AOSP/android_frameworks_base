@@ -19,7 +19,6 @@ import android.os.Build;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.security.keystore.KeyProperties;
-import android.system.keystore2.KeyDescriptor;
 import android.util.Base64;
 import android.util.Log;
 
@@ -44,21 +43,16 @@ import com.android.internal.org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import com.android.internal.org.bouncycastle.asn1.x509.Time;
 import com.android.internal.org.bouncycastle.cert.X509CertificateHolder;
 import com.android.internal.org.bouncycastle.cert.X509v3CertificateBuilder;
-import com.android.internal.org.bouncycastle.jce.provider.BouncyCastleProvider;
 import com.android.internal.org.bouncycastle.operator.ContentSigner;
 import com.android.internal.org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.cert.Certificate;
-import java.security.spec.ECGenParameterSpec;
-import java.security.spec.RSAKeyGenParameterSpec;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Date;
@@ -75,29 +69,15 @@ import javax.security.auth.x500.X500Principal;
 public final class KeyboxChainGenerator {
 
     private static final String TAG = "KeyboxChainGenerator";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     private static final int ATTESTATION_APPLICATION_ID_PACKAGE_INFOS_INDEX = 0;
     private static final int ATTESTATION_APPLICATION_ID_SIGNATURE_DIGESTS_INDEX = 1;
     private static final int ATTESTATION_PACKAGE_INFO_PACKAGE_NAME_INDEX = 0;
     private static final int ATTESTATION_PACKAGE_INFO_VERSION_INDEX = 1;
 
-    public static List<Certificate> generateCertChain(int uid, KeyDescriptor descriptor, KeyGenParameters params) {
-        dlog("Requested KeyPair with alias: " + descriptor.alias);
-        int size = params.keySize;
-        KeyPair kp;
+    public static List<Certificate> generateCertChain(int uid, PublicKey publicKey,
+            KeyGenParameters params) {
         try {
-            if (Objects.equals(params.algorithm, Algorithm.EC)) {
-                dlog("Generating EC keypair of size " + size);
-                kp = buildECKeyPair(params);
-            } else if (Objects.equals(params.algorithm, Algorithm.RSA)) {
-                dlog("Generating RSA keypair of size " + size);
-                kp = buildRSAKeyPair(params);
-            } else {
-                dlog("Unsupported algorithm");
-                return null;
-            }
-
             X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
                     KeyboxUtils.getCertificateHolder(
                             Objects.equals(params.algorithm, Algorithm.EC)
@@ -109,7 +89,7 @@ public final class KeyboxChainGenerator {
                     new Time(params.certificateNotAfter),
                     params.certificateSubject,
                     SubjectPublicKeyInfo.getInstance(
-                            ASN1Sequence.getInstance(kp.getPublic().getEncoded())
+                            ASN1Sequence.getInstance(publicKey.getEncoded())
                     )
             );
 
@@ -127,7 +107,6 @@ public final class KeyboxChainGenerator {
             Certificate leaf = KeyboxUtils.getCertificateFromHolder(certHolder);
             List<Certificate> chain = KeyboxUtils.getCertificateChain(leaf.getPublicKey().getAlgorithm());
             chain.add(0, leaf);
-            dlog("Successfully generated X500 Cert for alias: " + descriptor.alias);
             return chain;
         } catch (Throwable t) {
             Log.e(TAG, Log.getStackTraceString(t));
@@ -373,29 +352,6 @@ public final class KeyboxChainGenerator {
         public int hashCode() {
             return Arrays.hashCode(digest);
         }
-    }
-
-    private static KeyPair buildECKeyPair(KeyGenParameters params) throws Exception {
-        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
-        Security.addProvider(new BouncyCastleProvider());
-        ECGenParameterSpec spec = new ECGenParameterSpec(params.ecCurveName);
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
-        kpg.initialize(spec);
-        return kpg.generateKeyPair();
-    }
-
-    private static KeyPair buildRSAKeyPair(KeyGenParameters params) throws Exception {
-        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
-        Security.addProvider(new BouncyCastleProvider());
-        RSAKeyGenParameterSpec spec = new RSAKeyGenParameterSpec(
-                params.keySize, params.rsaPublicExponent);
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
-        kpg.initialize(spec);
-        return kpg.generateKeyPair();
-    }
-
-    private static void dlog(String msg) {
-        if (DEBUG) Log.d(TAG, msg);
     }
 
     public static class KeyGenParameters {
