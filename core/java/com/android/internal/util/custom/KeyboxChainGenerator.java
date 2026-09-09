@@ -16,6 +16,7 @@ import android.hardware.security.keymint.KeyParameter;
 import android.hardware.security.keymint.Tag;
 import android.os.Binder;
 import android.os.Build;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.security.keystore.KeyProperties;
@@ -129,31 +130,8 @@ public final class KeyboxChainGenerator {
                 Log.e(TAG, "Context is null in createExtension");
                 return null;
             }
-            SecureRandom secureRandom = new SecureRandom();
-
-            String key = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.VBOOT_KEY);
-            byte[] verifiedBootKey;
-            if (key == null) {
-                byte[] randomBytes = new byte[32];
-                secureRandom.nextBytes(randomBytes);
-                String encoded = Base64.encodeToString(randomBytes, Base64.NO_WRAP);
-                Settings.Secure.putString(context.getContentResolver(), Settings.Secure.VBOOT_KEY, encoded);
-                verifiedBootKey = randomBytes;
-            } else {
-                verifiedBootKey = Base64.decode(key, Base64.NO_WRAP);
-            }
-
-            String hash = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.VBOOT_HASH);
-            byte[] verifiedBootHash;
-            if (hash == null) {
-                byte[] randomBytes = new byte[32];
-                secureRandom.nextBytes(randomBytes);
-                String encoded = Base64.encodeToString(randomBytes, Base64.NO_WRAP);
-                Settings.Secure.putString(context.getContentResolver(), Settings.Secure.VBOOT_HASH, encoded);
-                verifiedBootHash = randomBytes;
-            } else {
-                verifiedBootHash = Base64.decode(hash, Base64.NO_WRAP);
-            }
+            byte[] verifiedBootKey = getVerifiedBootKey(context);
+            byte[] verifiedBootHash = getVerifiedBootHash();
 
             ASN1Encodable[] rootOfTrustEncodables = {
                     new DEROctetString(verifiedBootKey),
@@ -252,6 +230,59 @@ public final class KeyboxChainGenerator {
         return convertPatchLevel(Build.VERSION.SECURITY_PATCH, true);
     }
 
+    private static byte[] getVerifiedBootHash() {
+        // Duck Detector compares this OCTET STRING to ro.boot.vbmeta.digest.
+        // Inventing a random hash while the property is empty is a hard mismatch.
+        return decodeHexProperty("ro.boot.vbmeta.digest");
+    }
+
+    private static byte[] getVerifiedBootKey(Context context) {
+        byte[] fromProp = decodeHexProperty("ro.boot.vbmeta.public_key_digest");
+        if (fromProp.length > 0) {
+            return fromProp;
+        }
+
+        String key = Settings.Secure.getString(context.getContentResolver(),
+                Settings.Secure.VBOOT_KEY);
+        if (key != null) {
+            try {
+                byte[] decoded = Base64.decode(key, Base64.NO_WRAP);
+                if (decoded.length > 0) {
+                    return decoded;
+                }
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+
+        byte[] randomBytes = new byte[32];
+        new SecureRandom().nextBytes(randomBytes);
+        Settings.Secure.putString(context.getContentResolver(), Settings.Secure.VBOOT_KEY,
+                Base64.encodeToString(randomBytes, Base64.NO_WRAP));
+        return randomBytes;
+    }
+
+    private static byte[] decodeHexProperty(String name) {
+        String value = SystemProperties.get(name, "");
+        if (value == null || value.isEmpty()) {
+            return new byte[0];
+        }
+        if (value.startsWith("0x") || value.startsWith("0X")) {
+            value = value.substring(2);
+        }
+        if ((value.length() & 1) != 0) {
+            return new byte[0];
+        }
+        try {
+            byte[] out = new byte[value.length() / 2];
+            for (int i = 0; i < out.length; i++) {
+                out[i] = (byte) Integer.parseInt(value.substring(i * 2, i * 2 + 2), 16);
+            }
+            return out;
+        } catch (NumberFormatException e) {
+            return new byte[0];
+        }
+    }
+
     private static int convertPatchLevel(String patchLevel, boolean longFormat) {
         try {
             String[] parts = patchLevel.split("-");
@@ -274,7 +305,9 @@ public final class KeyboxChainGenerator {
         ASN1Enumerated attestationSecurityLevel = new ASN1Enumerated(1);
         ASN1Integer keymasterVersion = new ASN1Integer(100);
         ASN1Enumerated keymasterSecurityLevel = new ASN1Enumerated(1);
-        ASN1OctetString attestationChallenge = new DEROctetString(params.attestationChallenge);
+        byte[] challenge = params.attestationChallenge != null
+                ? params.attestationChallenge : new byte[0];
+        ASN1OctetString attestationChallenge = new DEROctetString(challenge);
         ASN1OctetString uniqueId = new DEROctetString(new byte[0]);
         ASN1Encodable softwareEnforced = new DERSequence(softwareEnforcedEncodables);
         ASN1Sequence teeEnforced = new DERSequence(teeEnforcedEncodables);
