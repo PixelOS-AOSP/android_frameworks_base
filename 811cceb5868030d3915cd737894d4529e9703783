@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c4b38281_5507067c",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000053
+      },
+      "writtenOn": "2026-09-11T12:40:19Z",
+      "side": 1,
+      "message": "works as intended, subtitle is now centered after this change",
+      "revId": "811cceb5868030d3915cd737894d4529e9703783",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
