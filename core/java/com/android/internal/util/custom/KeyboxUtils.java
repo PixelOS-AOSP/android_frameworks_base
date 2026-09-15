@@ -31,15 +31,11 @@ import java.security.spec.RSAPrivateCrtKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @hide
  */
 public class KeyboxUtils {
-
-    private static final ConcurrentHashMap<Key, KeyEntryResponse> response = new ConcurrentHashMap<>();
-    public static record Key(int uid, String alias) {}
 
     public static byte[] decodePemOrBase64(String input) {
         String base64 = input
@@ -142,13 +138,5 @@ public class KeyboxUtils {
 
         X509Certificate parsedCert = parseCertificate(certPem);
         return new X509CertificateHolder(parsedCert.getEncoded());
-    }
-
-    public static void append(int uid, String a, KeyEntryResponse c) {
-        response.put(new Key(uid, a), c);
-    }
-
-    public static KeyEntryResponse retrieve(int uid, String a) {
-        return response.get(new Key(uid, a));
     }
 }
