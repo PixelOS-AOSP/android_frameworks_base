@@ -149,9 +149,17 @@ constructor(
 
     private val _faceSettings =
         _userId.map { id -> faceSettings.forUser(id) }.distinctUntilChanged()
-
-    override val isConfirmationRequired =
+    private val _faceSettingAlwaysRequireConfirmation =
         _faceSettings.flatMapLatest { it.alwaysRequireConfirmationInApps }.distinctUntilChanged()
+
+    private val _isConfirmationRequired = _promptInfo.map { it?.isConfirmationRequested ?: false }
+    override val isConfirmationRequired =
+        combine(_isConfirmationRequired, _faceSettingAlwaysRequireConfirmation) {
+                appRequiresConfirmation,
+                forceRequireConfirmation ->
+                forceRequireConfirmation || appRequiresConfirmation
+            }
+            .distinctUntilChanged()
 
     override fun setPrompt(
         promptInfo: PromptInfo,

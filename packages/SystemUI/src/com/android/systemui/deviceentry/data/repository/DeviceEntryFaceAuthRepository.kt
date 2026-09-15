@@ -234,7 +234,7 @@ constructor(
             )
 
     override fun setLockedOut(isLockedOut: Boolean) {
-        _isLockedOut.value = false
+        _isLockedOut.value = isLockedOut
     }
 
     private val faceLockoutResetCallback =
@@ -508,7 +508,7 @@ constructor(
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
                 val errorStatus = ErrorFaceAuthenticationStatus(errorCode, errString.toString())
                 if (errorStatus.isLockoutError()) {
-                    _isLockedOut.value = false
+                    _isLockedOut.value = true
                 }
                 _isCurrentUserAuthenticated.value = false
                 _authenticationStatus.value = errorStatus
