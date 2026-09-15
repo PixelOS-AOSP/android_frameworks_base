@@ -5,173 +5,165 @@
  */
 package com.android.internal.util.custom;
 
+import android.annotation.Nullable;
+import android.app.ActivityThread;
+import android.content.Context;
 import android.hardware.security.keymint.Algorithm;
+import android.hardware.security.keymint.EcCurve;
 import android.hardware.security.keymint.KeyParameter;
-import android.hardware.security.keymint.KeyParameterValue;
+import android.hardware.security.keymint.KeyPurpose;
 import android.hardware.security.keymint.Tag;
-import android.os.Binder;
-import android.system.keystore2.Authorization;
-import android.system.keystore2.IKeystoreSecurityLevel;
+import android.os.Process;
+import android.security.KeyStore2;
+import android.security.KeyStoreException;
+import android.security.keymaster.KeymasterDefs;
+import android.system.keystore2.Domain;
 import android.system.keystore2.KeyDescriptor;
-import android.system.keystore2.KeyEntryResponse;
 import android.system.keystore2.KeyMetadata;
+import android.system.keystore2.ResponseCode;
+import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.internal.util.PropImitationHooks;
 import com.android.internal.util.custom.KeyboxChainGenerator.KeyGenParameters;
 
+import java.nio.charset.StandardCharsets;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @hide
  */
 public class KeyboxImitationHooks {
-
     private static final String TAG = "KeyboxImitationHooks";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
-    private static boolean mSuccess = false;
 
-    public static KeyEntryResponse onGetKeyEntry(KeyDescriptor descriptor) {
-        if (!KeyProviderManager.isKeyboxAvailable()) {
+    // KeyMint does not see the challenge on the keybox path.
+    private static final int MAX_ATTESTATION_CHALLENGE_LENGTH = 128;
+
+    /**
+     * Removes backend attestation tags, or returns null for requests the keybox cannot attest.
+     */
+    @Nullable
+    public static Collection<KeyParameter> prepareGenerateKeyParameters(
+            KeyDescriptor descriptor, @Nullable KeyDescriptor attestationKey,
+            Collection<KeyParameter> args)
+            throws KeyStoreException {
+        // BLOB keys have no database entry for updateSubcomponents.
+        if (descriptor.domain == Domain.BLOB || attestationKey != null) {
             return null;
         }
 
-        if (!mSuccess) {
-            return null;
-        }
-
-        KeyEntryResponse spoofed = KeyboxUtils.retrieve(Binder.getCallingUid(), descriptor.alias);
-        if (spoofed != null) {
-            dlog("Key entry spoofed");
-            return spoofed;
-        }
-
-        return null;
-    }
-
-    public static KeyMetadata generateKey(IKeystoreSecurityLevel level, KeyDescriptor descriptor, Collection<KeyParameter> args) {
-        if (!KeyProviderManager.isKeyboxAvailable()) {
-            return null;
-        }
-
-        KeyGenParameters params = new KeyGenParameters(args.toArray(new KeyParameter[args.size()]));
-
-        if (params.attestationChallenge == null) {
-            return null;
-        }
-
-        if (params.algorithm != Algorithm.EC && params.algorithm != Algorithm.RSA) {
-            Log.w(TAG, "Unsupported algorithm: " + params.algorithm);
-            return null;
-        }
-
-        int uid = Binder.getCallingUid();
+        byte[] challenge = null;
         try {
-            List<Certificate> chain = KeyboxChainGenerator.generateCertChain(uid, descriptor, params);
-            if (chain == null || chain.isEmpty()) {
+            boolean canSign = false;
+            int algorithm = -1;
+            for (KeyParameter parameter : args) {
+                switch (parameter.tag) {
+                    case Tag.ATTESTATION_CHALLENGE -> challenge = parameter.value.getBlob();
+                    case Tag.PURPOSE ->
+                            canSign |= parameter.value.getKeyPurpose() == KeyPurpose.SIGN;
+                    case Tag.ALGORITHM -> algorithm = parameter.value.getAlgorithm();
+                    case Tag.EC_CURVE -> {
+                        if (parameter.value.getEcCurve() == EcCurve.CURVE_25519) {
+                            return null;
+                        }
+                    }
+                    // These identifiers require backend permission checks or attestation support.
+                    case Tag.ATTESTATION_ID_SERIAL, Tag.ATTESTATION_ID_IMEI,
+                            Tag.ATTESTATION_ID_SECOND_IMEI, Tag.ATTESTATION_ID_MEID,
+                            Tag.DEVICE_UNIQUE_ATTESTATION, Tag.INCLUDE_UNIQUE_ID -> {
+                        return null;
+                    }
+                    default -> {
+                    }
+                }
+            }
+            if (challenge == null || !canSign
+                    || (algorithm != Algorithm.EC && algorithm != Algorithm.RSA)
+                    || !KeyProviderManager.isKeyboxAvailable()) {
                 return null;
             }
-            KeyEntryResponse response = buildResponse(level, chain, params, descriptor);
-            if (response == null) {
-                return null;
-            }
-            KeyboxUtils.append(uid, descriptor.alias, response);
-            mSuccess = true;
-            return response.metadata;
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to generate key", e);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Leaving key generation with the backend", e);
             return null;
         }
+
+        if (challenge.length > MAX_ATTESTATION_CHALLENGE_LENGTH) {
+            throw new KeyStoreException(KeymasterDefs.KM_ERROR_INVALID_INPUT_LENGTH,
+                    "Attestation challenge too large");
+        }
+
+        List<KeyParameter> filtered = new ArrayList<>(args.size());
+        for (KeyParameter parameter : args) {
+            if (!isBackendAttestationTag(parameter.tag)) {
+                filtered.add(parameter);
+            }
+        }
+        return filtered;
     }
 
-    private static KeyEntryResponse buildResponse(
-            IKeystoreSecurityLevel level,
-            List<Certificate> chain,
-            KeyGenParameters params,
-            KeyDescriptor descriptor
-    ) {
+    public static void updateCertificateChain(KeyMetadata metadata,
+            Collection<KeyParameter> args) throws KeyStoreException {
+        KeyMetadata certificates = new KeyMetadata();
         try {
-            KeyEntryResponse response = new KeyEntryResponse();
-            KeyMetadata metadata = new KeyMetadata();
-            metadata.keySecurityLevel = params.securityLevel;
+            KeyGenParameters params = new KeyGenParameters(args.toArray(new KeyParameter[0]));
+            applyCertifiedAttestationIds(params);
 
-            KeyboxUtils.putCertificateChain(metadata, chain.toArray(new Certificate[chain.size()]));
-
-            KeyDescriptor d = new KeyDescriptor();
-            d.domain = descriptor.domain;
-            d.nspace = descriptor.nspace;
-            metadata.key = d;
-
-            List<Authorization> authorizations = new ArrayList<>();
-            Authorization a;
-
-            for (Integer i : params.purpose) {
-                a = new Authorization();
-                a.keyParameter = new KeyParameter();
-                a.keyParameter.tag = Tag.PURPOSE;
-                a.keyParameter.value = KeyParameterValue.keyPurpose(i);
-                a.securityLevel = params.securityLevel;
-                authorizations.add(a);
-            }
-
-            for (Integer i : params.digest) {
-                a = new Authorization();
-                a.keyParameter = new KeyParameter();
-                a.keyParameter.tag = Tag.DIGEST;
-                a.keyParameter.value = KeyParameterValue.digest(i);
-                a.securityLevel = params.securityLevel;
-                authorizations.add(a);
-            }
-
-            a = new Authorization();
-            a.keyParameter = new KeyParameter();
-            a.keyParameter.tag = Tag.ALGORITHM;
-            a.keyParameter.value = KeyParameterValue.algorithm(params.algorithm);
-            a.securityLevel = params.securityLevel;
-            authorizations.add(a);
-
-            a = new Authorization();
-            a.keyParameter = new KeyParameter();
-            a.keyParameter.tag = Tag.KEY_SIZE;
-            a.keyParameter.value = KeyParameterValue.integer(params.keySize);
-            a.securityLevel = params.securityLevel;
-            authorizations.add(a);
-
-            a = new Authorization();
-            a.keyParameter = new KeyParameter();
-            a.keyParameter.tag = Tag.EC_CURVE;
-            a.keyParameter.value = KeyParameterValue.ecCurve(params.ecCurve);
-            a.securityLevel = params.securityLevel;
-            authorizations.add(a);
-
-            a = new Authorization();
-            a.keyParameter = new KeyParameter();
-            a.keyParameter.tag = Tag.NO_AUTH_REQUIRED;
-            a.keyParameter.value = KeyParameterValue.boolValue(true); // TODO: copy
-            a.securityLevel = params.securityLevel;
-            authorizations.add(a);
-
-            // TODO: ORIGIN, OS_VERSION, OS_PATCHLEVEL, VENDOR_PATCHLEVEL, BOOT_PATCHLEVEL,
-            // CREATION_DATETIME, USER_ID
-
-            metadata.authorizations = authorizations.toArray(new Authorization[0]);
-            response.metadata = metadata;
-            response.iSecurityLevel = level;
-            return response;
+            List<Certificate> chain = KeyboxChainGenerator.generateCertChain(
+                    Process.myUid(), metadata.certificate, params);
+            KeyboxUtils.putCertificateChain(certificates, chain.toArray(new Certificate[0]));
         } catch (Exception e) {
-            Log.e(TAG, "Failed to build key entry response", e);
+            Log.e(TAG, "Keybox certificate preparation failed", e);
+            // The backend certificate has no challenge and cannot satisfy this request.
+            throw new KeyStoreException(ResponseCode.SYSTEM_ERROR,
+                    "Keybox certificate preparation failed");
+        }
+
+        // The key ID still identifies this key if another caller replaces the alias.
+        KeyStore2.getInstance().updateSubcomponents(metadata.key,
+                certificates.certificate, certificates.certificateChain);
+        metadata.certificate = certificates.certificate;
+        metadata.certificateChain = certificates.certificateChain;
+    }
+
+    private static boolean isBackendAttestationTag(int tag) {
+        return tag == Tag.ATTESTATION_CHALLENGE
+                || tag == Tag.ATTESTATION_APPLICATION_ID
+                || tag == Tag.ATTESTATION_ID_BRAND
+                || tag == Tag.ATTESTATION_ID_DEVICE
+                || tag == Tag.ATTESTATION_ID_PRODUCT
+                || tag == Tag.ATTESTATION_ID_MANUFACTURER
+                || tag == Tag.ATTESTATION_ID_MODEL;
+    }
+
+    private static void applyCertifiedAttestationIds(KeyGenParameters params) {
+        if (params.brand == null && params.device == null && params.product == null
+                && params.manufacturer == null && params.model == null) {
+            return;
+        }
+
+        Context context = ActivityThread.currentApplication();
+        if (context == null) {
+            return;
+        }
+        // Use the certified profile for the requested device IDs.
+        Map<String, String> props = PropImitationHooks.getCertifiedProps(context);
+        params.brand = getCertifiedId(props, "BRAND", params.brand);
+        params.device = getCertifiedId(props, "DEVICE", params.device);
+        params.product = getCertifiedId(props, "PRODUCT", params.product);
+        params.manufacturer = getCertifiedId(props, "MANUFACTURER", params.manufacturer);
+        params.model = getCertifiedId(props, "MODEL", params.model);
+    }
+
+    private static byte[] getCertifiedId(Map<String, String> props, String field,
+            byte[] requested) {
+        if (requested == null) {
             return null;
         }
-    }
-
-    public static void setSuccessFlag(boolean flag) {
-        mSuccess = flag;
-    }
-
-    private static void dlog(String msg) {
-        if (DEBUG) Log.d(TAG, msg);
+        String value = props.get(field);
+        return TextUtils.isEmpty(value) ? requested : value.getBytes(StandardCharsets.UTF_8);
     }
 }

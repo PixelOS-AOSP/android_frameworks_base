@@ -5,7 +5,6 @@
 package com.android.internal.util.custom;
 
 import android.security.keystore.KeyProperties;
-import android.system.keystore2.KeyEntryResponse;
 import android.system.keystore2.KeyMetadata;
 
 import com.android.internal.org.bouncycastle.asn1.ASN1Sequence;
@@ -27,19 +26,14 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.RSAPrivateCrtKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @hide
  */
 public class KeyboxUtils {
-
-    private static final ConcurrentHashMap<Key, KeyEntryResponse> response = new ConcurrentHashMap<>();
-    public static record Key(int uid, String alias) {}
 
     public static byte[] decodePemOrBase64(String input) {
         String base64 = input
@@ -96,7 +90,6 @@ public class KeyboxUtils {
                 ? provider.getEcCertificateChain()
                 : provider.getRsaCertificateChain();
 
-        CertificateFactory factory = CertificateFactory.getInstance("X.509");
         List<Certificate> certs = new ArrayList<>();
 
         for (String certPem : certChainPem) {
@@ -104,10 +97,6 @@ public class KeyboxUtils {
         }
 
         return certs;
-    }
-
-    public static void putCertificateChain(KeyEntryResponse response, Certificate[] chain) throws Exception {
-        putCertificateChain(response.metadata, chain);
     }
 
     public static void putCertificateChain(KeyMetadata metadata, Certificate[] chain) throws Exception {
@@ -142,13 +131,5 @@ public class KeyboxUtils {
 
         X509Certificate parsedCert = parseCertificate(certPem);
         return new X509CertificateHolder(parsedCert.getEncoded());
-    }
-
-    public static void append(int uid, String a, KeyEntryResponse c) {
-        response.put(new Key(uid, a), c);
-    }
-
-    public static KeyEntryResponse retrieve(int uid, String a) {
-        return response.get(new Key(uid, a));
     }
 }
