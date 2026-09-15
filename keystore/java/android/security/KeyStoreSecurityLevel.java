@@ -168,18 +168,23 @@ public class KeyStoreSecurityLevel {
             throws KeyStoreException {
         StrictMode.noteDiskWrite();
 
-        KeyboxImitationHooks.setSuccessFlag(false);
-        if (attestationKey == null) {
-            KeyMetadata metadata = KeyboxImitationHooks.generateKey(mSecurityLevel,
-                    descriptor, args);
-            if (metadata != null) {
-                return metadata;
-            }
+        // Non-null only when the keybox attests this key. KeyMint then gets the request
+        // without attestation tags so its own attestation cannot fail generation.
+        Collection<KeyParameter> keyboxArgs =
+                KeyboxImitationHooks.prepareGenerateKeyParameters(attestationKey, args);
+        Collection<KeyParameter> generateArgs = keyboxArgs != null ? keyboxArgs : args;
+
+        KeyMetadata metadata = retryBusyException(() -> mSecurityLevel.generateKey(
+                descriptor, attestationKey,
+                generateArgs.toArray(new KeyParameter[generateArgs.size()]),
+                flags, entropy));
+
+        if (keyboxArgs != null) {
+            // The keybox chain needs the caller's original challenge and IDs.
+            KeyboxImitationHooks.updateCertificateChain(metadata, args);
         }
 
-        return retryBusyException(() -> mSecurityLevel.generateKey(
-                descriptor, attestationKey, args.toArray(new KeyParameter[args.size()]),
-                flags, entropy));
+        return metadata;
     }
 
     /**
