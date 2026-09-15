@@ -15,7 +15,7 @@ import org.xmlpull.v1.XmlPullParser;
 
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -193,15 +193,16 @@ public final class KeyProviderManager {
         }
 
         private String[] getCertificateChain(String prefix) {
-            List<String> dataList = new ArrayList<>();
+            String certificatePrefix = prefix + ".CERT_";
+            List<String> certificateKeys = new ArrayList<>();
             for (String key : keyboxData.keySet()) {
-                if (key.startsWith(prefix + ".CERT_")) {
-                    dataList.add(keyboxData.get(key));
+                if (key.startsWith(certificatePrefix)) {
+                    certificateKeys.add(key);
                 }
             }
-            String[] chain = dataList.toArray(String[]::new);
-            Arrays.sort(chain);
-            return chain;
+            certificateKeys.sort(Comparator.comparingInt(
+                    key -> Integer.parseInt(key.substring(certificatePrefix.length()))));
+            return certificateKeys.stream().map(keyboxData::get).toArray(String[]::new);
         }
     }
 }
