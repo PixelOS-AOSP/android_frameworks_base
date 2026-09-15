@@ -10,13 +10,12 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.hardware.security.keymint.Algorithm;
-import android.hardware.security.keymint.EcCurve;
+import android.hardware.security.keymint.KeyOrigin;
 import android.hardware.security.keymint.KeyParameter;
 import android.hardware.security.keymint.Tag;
-import android.os.Binder;
 import android.os.Build;
+import android.os.SystemProperties;
 import android.security.keystore.KeyProperties;
-import android.system.keystore2.KeyDescriptor;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -33,37 +32,24 @@ import com.android.internal.org.bouncycastle.asn1.DEROctetString;
 import com.android.internal.org.bouncycastle.asn1.DERSequence;
 import com.android.internal.org.bouncycastle.asn1.DERSet;
 import com.android.internal.org.bouncycastle.asn1.DERTaggedObject;
-import com.android.internal.org.bouncycastle.asn1.x500.X500Name;
 import com.android.internal.org.bouncycastle.asn1.x509.Extension;
-import com.android.internal.org.bouncycastle.asn1.x509.KeyUsage;
-import com.android.internal.org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import com.android.internal.org.bouncycastle.asn1.x509.Time;
 import com.android.internal.org.bouncycastle.cert.X509CertificateHolder;
 import com.android.internal.org.bouncycastle.cert.X509v3CertificateBuilder;
-import com.android.internal.org.bouncycastle.jce.provider.BouncyCastleProvider;
 import com.android.internal.org.bouncycastle.operator.ContentSigner;
 import com.android.internal.org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.security.Security;
 import java.security.cert.Certificate;
-import java.security.spec.ECGenParameterSpec;
-import java.security.spec.RSAKeyGenParameterSpec;
-import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
-import javax.security.auth.x500.X500Principal;
+import libcore.util.HexEncoding;
 
 /**
  * @hide
@@ -71,64 +57,36 @@ import javax.security.auth.x500.X500Principal;
 public final class KeyboxChainGenerator {
 
     private static final String TAG = "KeyboxChainGenerator";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     private static final int ATTESTATION_APPLICATION_ID_PACKAGE_INFOS_INDEX = 0;
     private static final int ATTESTATION_APPLICATION_ID_SIGNATURE_DIGESTS_INDEX = 1;
     private static final int ATTESTATION_PACKAGE_INFO_PACKAGE_NAME_INDEX = 0;
     private static final int ATTESTATION_PACKAGE_INFO_VERSION_INDEX = 1;
 
-    public static List<Certificate> generateCertChain(int uid, KeyDescriptor descriptor, KeyGenParameters params) {
-        dlog("Requested KeyPair with alias: " + descriptor.alias);
-        int size = params.keySize;
-        KeyPair kp;
-        try {
-            if (Objects.equals(params.algorithm, Algorithm.EC)) {
-                dlog("Generating EC keypair of size " + size);
-                kp = buildECKeyPair(params);
-            } else if (Objects.equals(params.algorithm, Algorithm.RSA)) {
-                dlog("Generating RSA keypair of size " + size);
-                kp = buildRSAKeyPair(params);
-            } else {
-                dlog("Unsupported algorithm");
-                return null;
-            }
+    public static List<Certificate> generateCertChain(int uid, byte[] encodedCertificate,
+            KeyGenParameters params) throws Exception {
+        X509CertificateHolder certificate = new X509CertificateHolder(encodedCertificate);
+        String algorithm = params.algorithm == Algorithm.EC
+                ? KeyProperties.KEY_ALGORITHM_EC : KeyProperties.KEY_ALGORITHM_RSA;
+        X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
+                KeyboxUtils.getCertificateHolder(algorithm).getSubject(),
+                certificate.getSerialNumber(), certificate.getNotBefore(),
+                certificate.getNotAfter(), certificate.getSubject(),
+                certificate.getSubjectPublicKeyInfo());
 
-            X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
-                    KeyboxUtils.getCertificateHolder(
-                            Objects.equals(params.algorithm, Algorithm.EC)
-                                    ? KeyProperties.KEY_ALGORITHM_EC
-                                    : KeyProperties.KEY_ALGORITHM_RSA
-                    ).getSubject(),
-                    params.certificateSerial,
-                    new Time(params.certificateNotBefore),
-                    new Time(params.certificateNotAfter),
-                    params.certificateSubject,
-                    SubjectPublicKeyInfo.getInstance(
-                            ASN1Sequence.getInstance(kp.getPublic().getEncoded())
-                    )
-            );
-
-            KeyUsage keyUsage = new KeyUsage(KeyUsage.keyCertSign);
-            certBuilder.addExtension(Extension.keyUsage, true, keyUsage);
-            certBuilder.addExtension(createExtension(params, uid));
-
-            ContentSigner contentSigner;
-            if (Objects.equals(params.algorithm, Algorithm.EC)) {
-                contentSigner = new JcaContentSignerBuilder("SHA256withECDSA").build(KeyboxUtils.getPrivateKey(KeyProperties.KEY_ALGORITHM_EC));
-            } else {
-                contentSigner = new JcaContentSignerBuilder("SHA256withRSA").build(KeyboxUtils.getPrivateKey(KeyProperties.KEY_ALGORITHM_RSA));
-            }
-            X509CertificateHolder certHolder = certBuilder.build(contentSigner);
-            Certificate leaf = KeyboxUtils.getCertificateFromHolder(certHolder);
-            List<Certificate> chain = KeyboxUtils.getCertificateChain(leaf.getPublicKey().getAlgorithm());
-            chain.add(0, leaf);
-            dlog("Successfully generated X500 Cert for alias: " + descriptor.alias);
-            return chain;
-        } catch (Throwable t) {
-            Log.e(TAG, Log.getStackTraceString(t));
+        Extension keyUsage = certificate.getExtension(Extension.keyUsage);
+        if (keyUsage != null) {
+            certBuilder.addExtension(keyUsage);
         }
-        return null;
+        certBuilder.addExtension(createExtension(params, uid));
+
+        ContentSigner contentSigner = new JcaContentSignerBuilder(
+                params.algorithm == Algorithm.EC ? "SHA256withECDSA" : "SHA256withRSA")
+                .build(KeyboxUtils.getPrivateKey(algorithm));
+        Certificate leaf = KeyboxUtils.getCertificateFromHolder(certBuilder.build(contentSigner));
+        List<Certificate> chain = KeyboxUtils.getCertificateChain(algorithm);
+        chain.add(0, leaf);
+        return chain;
     }
 
     private static ASN1Encodable[] fromIntList(List<Integer> list) {
@@ -139,87 +97,59 @@ public final class KeyboxChainGenerator {
         return result;
     }
 
-    private static Extension createExtension(KeyGenParameters params, int uid) {
-        try {
-            SecureRandom random = new SecureRandom();
+    private static Extension createExtension(KeyGenParameters params, int uid) throws Exception {
+        ASN1Encodable[] rootOfTrustEncodables = {
+                new DEROctetString(getVerifiedBootKey()),
+                ASN1Boolean.TRUE,
+                new ASN1Enumerated(0),
+                new DEROctetString(decodeHexProperty("ro.boot.vbmeta.digest"))
+        };
 
-            byte[] bytes1 = new byte[32];
-            byte[] bytes2 = new byte[32];
+        ASN1Sequence rootOfTrustSeq = new DERSequence(rootOfTrustEncodables);
 
-            random.nextBytes(bytes1);
-            random.nextBytes(bytes2);
-
-            ASN1Encodable[] rootOfTrustEncodables = {new DEROctetString(bytes1), ASN1Boolean.TRUE,
-                    new ASN1Enumerated(0), new DEROctetString(bytes2)};
-
-            ASN1Sequence rootOfTrustSeq = new DERSequence(rootOfTrustEncodables);
-
-            var Apurpose = new DERSet(fromIntList(params.purpose));
-            var Aalgorithm = new ASN1Integer(params.algorithm);
-            var AkeySize = new ASN1Integer(params.keySize);
-            var Adigest = new DERSet(fromIntList(params.digest));
-            var AecCurve = new ASN1Integer(params.ecCurve);
-            var AnoAuthRequired = DERNull.INSTANCE;
-
-            // To be loaded
-            var AosVersion = new ASN1Integer(getOsVersion());
-            var AosPatchLevel = new ASN1Integer(getPatchLevel());
-
-            var AapplicationID = createApplicationId(uid);
-            var AbootPatchlevel = new ASN1Integer(getPatchLevelLong());
-            var AvendorPatchLevel = new ASN1Integer(getPatchLevelLong());
-
-            var AcreationDateTime = new ASN1Integer(System.currentTimeMillis());
-            var Aorigin = new ASN1Integer(0);
-
-            var purpose = new DERTaggedObject(true, 1, Apurpose);
-            var algorithm = new DERTaggedObject(true, 2, Aalgorithm);
-            var keySize = new DERTaggedObject(true, 3, AkeySize);
-            var digest = new DERTaggedObject(true, 5, Adigest);
-            var ecCurve = new DERTaggedObject(true, 10, AecCurve);
-            var noAuthRequired = new DERTaggedObject(true, 503, AnoAuthRequired);
-            var creationDateTime = new DERTaggedObject(true, 701, AcreationDateTime);
-            var origin = new DERTaggedObject(true, 702, Aorigin);
-            var rootOfTrust = new DERTaggedObject(true, 704, rootOfTrustSeq);
-            var osVersion = new DERTaggedObject(true, 705, AosVersion);
-            var osPatchLevel = new DERTaggedObject(true, 706, AosPatchLevel);
-            var applicationID = new DERTaggedObject(true, 709, AapplicationID);
-            var vendorPatchLevel = new DERTaggedObject(true, 718, AvendorPatchLevel);
-            var bootPatchLevel = new DERTaggedObject(true, 719, AbootPatchlevel);
-
-            ASN1Encodable[] teeEnforcedEncodables;
-
-            // Support device properties attestation
-            if (params.brand != null) {
-                var Abrand = new DEROctetString(params.brand);
-                var Adevice = new DEROctetString(params.device);
-                var Aproduct = new DEROctetString(params.product);
-                var Amanufacturer = new DEROctetString(params.manufacturer);
-                var Amodel = new DEROctetString(params.model);
-                var brand = new DERTaggedObject(true, 710, Abrand);
-                var device = new DERTaggedObject(true, 711, Adevice);
-                var product = new DERTaggedObject(true, 712, Aproduct);
-                var manufacturer = new DERTaggedObject(true, 716, Amanufacturer);
-                var model = new DERTaggedObject(true, 717, Amodel);
-
-                teeEnforcedEncodables = new ASN1Encodable[]{purpose, algorithm, keySize, digest, ecCurve,
-                        noAuthRequired, origin, rootOfTrust, osVersion, osPatchLevel, vendorPatchLevel,
-                        bootPatchLevel, brand, device, product, manufacturer, model};
-            } else {
-                teeEnforcedEncodables = new ASN1Encodable[]{purpose, algorithm, keySize, digest, ecCurve,
-                        noAuthRequired, origin, rootOfTrust, osVersion, osPatchLevel, vendorPatchLevel,
-                        bootPatchLevel};
-            }
-
-            ASN1Encodable[] softwareEnforced = {applicationID, creationDateTime};
-
-            ASN1OctetString keyDescriptionOctetStr = getAsn1OctetString(teeEnforcedEncodables, softwareEnforced, params);
-
-            return new Extension(new ASN1ObjectIdentifier("1.3.6.1.4.1.11129.2.1.17"), false, keyDescriptionOctetStr);
-        } catch (Throwable t) {
-            Log.e(TAG, Log.getStackTraceString(t));
+        // AuthorizationList is a SEQUENCE, so entries must follow schema order.
+        List<ASN1Encodable> teeEnforced = new ArrayList<>();
+        if (!params.purpose.isEmpty()) {
+            teeEnforced.add(new DERTaggedObject(true, 1, new DERSet(fromIntList(params.purpose))));
         }
-        return null;
+        teeEnforced.add(new DERTaggedObject(true, 2, new ASN1Integer(params.algorithm)));
+        teeEnforced.add(new DERTaggedObject(true, 3, new ASN1Integer(params.keySize)));
+        if (!params.digest.isEmpty()) {
+            teeEnforced.add(new DERTaggedObject(true, 5, new DERSet(fromIntList(params.digest))));
+        }
+        if (!params.padding.isEmpty()) {
+            teeEnforced.add(new DERTaggedObject(true, 6, new DERSet(fromIntList(params.padding))));
+        }
+        if (params.algorithm == Algorithm.EC) {
+            teeEnforced.add(new DERTaggedObject(true, 10, new ASN1Integer(params.ecCurve)));
+        } else if (params.algorithm == Algorithm.RSA) {
+            teeEnforced.add(new DERTaggedObject(true, 200,
+                    new ASN1Integer(params.rsaPublicExponent)));
+        }
+        if (params.noAuthRequired) {
+            teeEnforced.add(new DERTaggedObject(true, 503, DERNull.INSTANCE));
+        }
+        teeEnforced.add(new DERTaggedObject(true, 702, new ASN1Integer(KeyOrigin.GENERATED)));
+        teeEnforced.add(new DERTaggedObject(true, 704, rootOfTrustSeq));
+        teeEnforced.add(new DERTaggedObject(true, 705, new ASN1Integer(getOsVersion())));
+        teeEnforced.add(new DERTaggedObject(true, 706, new ASN1Integer(getPatchLevel())));
+        addAttestationId(teeEnforced, 710, params.brand);
+        addAttestationId(teeEnforced, 711, params.device);
+        addAttestationId(teeEnforced, 712, params.product);
+        addAttestationId(teeEnforced, 716, params.manufacturer);
+        addAttestationId(teeEnforced, 717, params.model);
+        teeEnforced.add(new DERTaggedObject(true, 718, new ASN1Integer(getPatchLevelLong())));
+        teeEnforced.add(new DERTaggedObject(true, 719, new ASN1Integer(getPatchLevelLong())));
+
+        ASN1Encodable[] softwareEnforced = {
+                new DERTaggedObject(true, 701, new ASN1Integer(System.currentTimeMillis())),
+                new DERTaggedObject(true, 709, createApplicationId(uid))
+        };
+
+        ASN1OctetString keyDescriptionOctetStr = getAsn1OctetString(
+                teeEnforced.toArray(new ASN1Encodable[0]), softwareEnforced, params);
+
+        return new Extension(new ASN1ObjectIdentifier("1.3.6.1.4.1.11129.2.1.17"), false, keyDescriptionOctetStr);
     }
 
     private static int getOsVersion() {
@@ -240,6 +170,35 @@ public final class KeyboxChainGenerator {
 
     private static int getPatchLevelLong() {
         return convertPatchLevel(Build.VERSION.SECURITY_PATCH, true);
+    }
+
+    private static byte[] getVerifiedBootKey() throws Exception {
+        byte[] fromProp = decodeHexProperty("ro.boot.vbmeta.public_key_digest");
+        if (fromProp.length > 0) {
+            return fromProp;
+        }
+
+        // Keep the fallback stable across processes and boots.
+        Certificate issuer = KeyboxUtils.getCertificateChain(KeyProperties.KEY_ALGORITHM_EC).get(0);
+        return MessageDigest.getInstance("SHA-256").digest(issuer.getEncoded());
+    }
+
+    private static void addAttestationId(List<ASN1Encodable> list, int tag, byte[] value) {
+        if (value != null) {
+            list.add(new DERTaggedObject(true, tag, new DEROctetString(value)));
+        }
+    }
+
+    private static byte[] decodeHexProperty(String name) {
+        String value = SystemProperties.get(name, "");
+        if (value.startsWith("0x") || value.startsWith("0X")) {
+            value = value.substring(2);
+        }
+        try {
+            return HexEncoding.decode(value, false);
+        } catch (IllegalArgumentException e) {
+            return new byte[0];
+        }
     }
 
     private static int convertPatchLevel(String patchLevel, boolean longFormat) {
@@ -265,7 +224,7 @@ public final class KeyboxChainGenerator {
         ASN1Integer keymasterVersion = new ASN1Integer(100);
         ASN1Enumerated keymasterSecurityLevel = new ASN1Enumerated(1);
         ASN1OctetString attestationChallenge = new DEROctetString(params.attestationChallenge);
-        ASN1OctetString uniqueId = new DEROctetString("".getBytes());
+        ASN1OctetString uniqueId = new DEROctetString(new byte[0]);
         ASN1Encodable softwareEnforced = new DERSequence(softwareEnforcedEncodables);
         ASN1Sequence teeEnforced = new DERSequence(teeEnforcedEncodables);
 
@@ -277,7 +236,7 @@ public final class KeyboxChainGenerator {
         return new DEROctetString(keyDescriptionHackSeq);
     }
 
-    private static DEROctetString createApplicationId(int uid) throws Throwable {
+    private static DEROctetString createApplicationId(int uid) throws Exception {
         Context context = ActivityThread.currentApplication();
         if (context == null) {
             throw new IllegalStateException("createApplicationId: context not available from ActivityThread!");
@@ -308,8 +267,10 @@ public final class KeyboxChainGenerator {
                     new ASN1Integer(info.getLongVersionCode());
             packageInfoAA[i] = new DERSequence(arr);
 
-            for (Signature s : info.signatures) {
-                signatures.add(new Digest(dg.digest(s.toByteArray())));
+            if (info.signatures != null) {
+                for (Signature s : info.signatures) {
+                    if (s != null) signatures.add(new Digest(dg.digest(s.toByteArray())));
+                }
             }
         }
 
@@ -342,43 +303,16 @@ public final class KeyboxChainGenerator {
         }
     }
 
-    private static KeyPair buildECKeyPair(KeyGenParameters params) throws Exception {
-        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
-        Security.addProvider(new BouncyCastleProvider());
-        ECGenParameterSpec spec = new ECGenParameterSpec(params.ecCurveName);
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
-        kpg.initialize(spec);
-        return kpg.generateKeyPair();
-    }
-
-    private static KeyPair buildRSAKeyPair(KeyGenParameters params) throws Exception {
-        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
-        Security.addProvider(new BouncyCastleProvider());
-        RSAKeyGenParameterSpec spec = new RSAKeyGenParameterSpec(
-                params.keySize, params.rsaPublicExponent);
-        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
-        kpg.initialize(spec);
-        return kpg.generateKeyPair();
-    }
-
-    private static void dlog(String msg) {
-        if (DEBUG) Log.d(TAG, msg);
-    }
-
     public static class KeyGenParameters {
         public int keySize;
         public int algorithm;
-        public BigInteger certificateSerial;
-        public Date certificateNotBefore;
-        public Date certificateNotAfter;
-        public X500Name certificateSubject;
-
-        public BigInteger rsaPublicExponent;
+        public BigInteger rsaPublicExponent = BigInteger.valueOf(65537);
         public int ecCurve;
-        public String ecCurveName;
 
         public List<Integer> purpose = new ArrayList<>();
         public List<Integer> digest = new ArrayList<>();
+        public List<Integer> padding = new ArrayList<>();
+        public boolean noAuthRequired;
 
         public byte[] attestationChallenge;
         public byte[] brand;
@@ -387,51 +321,25 @@ public final class KeyboxChainGenerator {
         public byte[] manufacturer;
         public byte[] model;
 
-        public int securityLevel;
-
         public KeyGenParameters(KeyParameter[] params) {
             for (KeyParameter kp : params) {
                 switch (kp.tag) {
                     case Tag.KEY_SIZE -> keySize = kp.value.getInteger();
                     case Tag.ALGORITHM -> algorithm = kp.value.getAlgorithm();
-                    case Tag.CERTIFICATE_SERIAL -> certificateSerial = new BigInteger(kp.value.getBlob());
-                    case Tag.CERTIFICATE_NOT_BEFORE -> certificateNotBefore = new Date(kp.value.getDateTime());
-                    case Tag.CERTIFICATE_NOT_AFTER -> certificateNotAfter = new Date(kp.value.getDateTime());
-                    case Tag.CERTIFICATE_SUBJECT -> certificateSubject =
-                            new X500Name(new X500Principal(kp.value.getBlob()).getName());
                     case Tag.RSA_PUBLIC_EXPONENT -> rsaPublicExponent = BigInteger.valueOf(kp.value.getLongInteger());
-                    case Tag.EC_CURVE -> {
-                        ecCurve = kp.value.getEcCurve();
-                        ecCurveName = getEcCurveName(ecCurve);
-                    }
-                    case Tag.PURPOSE -> {
-                        purpose.add(kp.value.getKeyPurpose());
-                    }
-                    case Tag.DIGEST -> {
-                        digest.add(kp.value.getDigest());
-                    }
+                    case Tag.EC_CURVE -> ecCurve = kp.value.getEcCurve();
+                    case Tag.PURPOSE -> purpose.add(kp.value.getKeyPurpose());
+                    case Tag.DIGEST -> digest.add(kp.value.getDigest());
+                    case Tag.PADDING -> padding.add(kp.value.getPaddingMode());
+                    case Tag.NO_AUTH_REQUIRED -> noAuthRequired = true;
                     case Tag.ATTESTATION_CHALLENGE -> attestationChallenge = kp.value.getBlob();
                     case Tag.ATTESTATION_ID_BRAND -> brand = kp.value.getBlob();
                     case Tag.ATTESTATION_ID_DEVICE -> device = kp.value.getBlob();
                     case Tag.ATTESTATION_ID_PRODUCT -> product = kp.value.getBlob();
                     case Tag.ATTESTATION_ID_MANUFACTURER -> manufacturer = kp.value.getBlob();
                     case Tag.ATTESTATION_ID_MODEL -> model = kp.value.getBlob();
-                    case Tag.HARDWARE_TYPE -> securityLevel = kp.value.getSecurityLevel();
                 }
             }
-        }
-
-        private static String getEcCurveName(int curve) {
-            String res;
-            switch (curve) {
-                case EcCurve.CURVE_25519 -> res = "CURVE_25519";
-                case EcCurve.P_224 -> res = "secp224r1";
-                case EcCurve.P_256 -> res = "secp256r1";
-                case EcCurve.P_384 -> res = "secp384r1";
-                case EcCurve.P_521 -> res = "secp521r1";
-                default -> throw new IllegalArgumentException("unknown curve");
-            }
-            return res;
         }
     }
 }

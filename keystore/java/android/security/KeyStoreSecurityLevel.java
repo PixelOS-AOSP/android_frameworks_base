@@ -168,18 +168,21 @@ public class KeyStoreSecurityLevel {
             throws KeyStoreException {
         StrictMode.noteDiskWrite();
 
-        KeyboxImitationHooks.setSuccessFlag(false);
-        if (attestationKey == null) {
-            KeyMetadata metadata = KeyboxImitationHooks.generateKey(mSecurityLevel,
-                    descriptor, args);
-            if (metadata != null) {
-                return metadata;
-            }
+        // Skip factory attestation when the keybox supplies the chain.
+        Collection<KeyParameter> keyboxArgs =
+                KeyboxImitationHooks.prepareGenerateKeyParameters(descriptor, attestationKey, args);
+        Collection<KeyParameter> generateArgs = keyboxArgs != null ? keyboxArgs : args;
+
+        KeyMetadata metadata = retryBusyException(() -> mSecurityLevel.generateKey(
+                descriptor, attestationKey,
+                generateArgs.toArray(new KeyParameter[generateArgs.size()]),
+                flags, entropy));
+
+        if (keyboxArgs != null) {
+            KeyboxImitationHooks.updateCertificateChain(metadata, args);
         }
 
-        return retryBusyException(() -> mSecurityLevel.generateKey(
-                descriptor, attestationKey, args.toArray(new KeyParameter[args.size()]),
-                flags, entropy));
+        return metadata;
     }
 
     /**
