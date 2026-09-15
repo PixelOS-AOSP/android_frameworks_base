@@ -23,7 +23,17 @@ import java.util.ArrayList;
 public class SenseUtils {
 
     public static boolean canUseProvider() {
-        return SystemProperties.getBoolean("ro.face.sense_service", false);
+        if (!SystemProperties.getBoolean("ro.face.sense_service", false)) {
+            return false;
+        }
+        // The Megvii JNI wrapper + libMegviiUnlock.so / libFaceDetectCA.so only
+        // ship on some devices. Without them the Sense provider can't function,
+        // so report unavailable instead of crashing later in native calls.
+        try {
+            return com.megvii.facepp.sdk.jni.LiteApi.isAvailable();
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     public static ArrayList<Byte> toByteArrayList(byte[] in) {

@@ -10,6 +10,17 @@ package com.megvii.facepp.sdk.jni;
 import com.megvii.facepp.sdk.Lite;
 
 public class LiteApi {
+    private static final String TAG = "SenseLiteApi";
+    private static volatile boolean sNativeLoaded = false;
+
+    /**
+     * True if libMegviiUnlock-jni-1.2.so (and its deps libMegviiUnlock.so,
+     * libFaceDetectCA.so) loaded successfully. Some devices don't ship these
+     * blobs, so callers must gate on this instead of assuming presence.
+     */
+    public static boolean isAvailable() {
+        return sNativeLoaded;
+    }
     public static native int nativeCheckFeatureValid(long handle, int id);
 
     public static native int nativeCompare(long handle, byte[] image, int width, int height,
@@ -76,6 +87,16 @@ public class LiteApi {
             int angle, int needLiveness, byte[] feature, byte[] restoreImage, int id);
 
     static {
-        System.loadLibrary("MegviiUnlock-jni-1.2");
+        try {
+            System.loadLibrary("MegviiUnlock-jni-1.2");
+            sNativeLoaded = true;
+        } catch (UnsatisfiedLinkError e) {
+            // Expected on devices that don't ship the Megvii blobs.
+            // canUseProvider() gates on isAvailable(), so the provider is
+            // never created there. Log at warning level; system_server must
+            // not crash at class-load time.
+            android.util.Log.w(TAG, "Megvii native lib missing, face vendor disabled", e);
+            sNativeLoaded = false;
+        }
     }
 }
