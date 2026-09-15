@@ -44,10 +44,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +74,11 @@ public class PropImitationHooks {
     private static final String PROCESS_GMS_UNSTABLE = PACKAGE_GMS + ".unstable";
     private static final String PACKAGE_NETFLIX = "com.netflix.mediaclient";
     private static final String PACKAGE_GPHOTOS = "com.google.android.apps.photos";
+
+    private static final Set<String> sFinskyProps = Set.of(
+        "FINGERPRINT",
+        "VERSION.DEVICE_INITIAL_SDK_INT"
+    );
 
     private static final ComponentName GMS_ADD_ACCOUNT_ACTIVITY = ComponentName.unflattenFromString(
             "com.google.android.gms/.auth.uiflows.minutemaid.MinuteMaidActivity");
@@ -117,7 +121,6 @@ public class PropImitationHooks {
         "PIXEL_2025_MIDYEAR_EXPERIENCE"
     );
 
-    private static volatile List<String> sCertifiedProps = new ArrayList<>();
     private static volatile String sStockFp, sNetflixModel;
 
     private static volatile String sProcessName;
@@ -227,38 +230,19 @@ public class PropImitationHooks {
         }
 
         // Guard: isolated processes cannot access content providers (Settings.*).
-        if (android.os.Process.isIsolated()) {
+        if (Process.isIsolated()) {
             dlog("Skipping setPlayIntegrityProps in isolated process");
             return;
         }
 
-        String savedProps = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.PIF_DATA);
-        if (savedProps == null || TextUtils.isEmpty(savedProps)) {
-            savedProps = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.FETCHED_PIF);
-        }
-
-        if (savedProps == null || TextUtils.isEmpty(savedProps)) {
-            dlog("Parsing props locally - fetched pif / user provided pif unavailable");
-            sCertifiedProps = Arrays.asList(context.getResources().getStringArray(R.array.config_certifiedBuildProperties));
-        } else {
-            dlog("Parsing props fetched / provided by user");
-            try {
-                JSONObject parsedProps = new JSONObject(savedProps);
-                Iterator<String> keys = parsedProps.keys();
-                while (keys.hasNext()) {
-                    String key = keys.next();
-                    String value = parsedProps.getString(key);
-                    sCertifiedProps.add(key + ":" + value);
-                }
-            } catch (JSONException e) {
-                Log.e(TAG, "Error parsing JSON data", e);
-                dlog("Parsing props locally as fallback");
-                sCertifiedProps = Arrays.asList(context.getResources().getStringArray(R.array.config_certifiedBuildProperties));
-            }
-        }
-
-        if (sCertifiedProps.isEmpty()) {
+        final Map<String, String> certifiedProps = getCertifiedProps(context);
+        if (certifiedProps.isEmpty()) {
             dlog("Certified props are not set");
+            return;
+        }
+
+        if (sIsFinsky) {
+            setCertifiedProps(certifiedProps);
             return;
         }
 
@@ -276,10 +260,10 @@ public class PropImitationHooks {
         };
 
         if (!was) {
-            dlog("Spoofing build for GMS / Finsky");
-            setCertifiedProps();
+            dlog("Spoofing build for GMS");
+            setCertifiedProps(certifiedProps);
         } else {
-            dlog("Skip spoofing build for GMS / Finsky, because GmsAddAccountActivityOnTop");
+            dlog("Skip spoofing build for GMS, because GmsAddAccountActivityOnTop");
         }
 
         try {
@@ -289,16 +273,74 @@ public class PropImitationHooks {
         }
     }
 
-    private static void setCertifiedProps() {
-        for (String entry : sCertifiedProps) {
+    /**
+     * Returns the user, fetched, or overlay profile, in that order of preference.
+     * Empty when GMS prop imitation is disabled.
+     */
+    public static Map<String, String> getCertifiedProps(Context context) {
+        final Map<String, String> props = new LinkedHashMap<>();
+        if (sDisableGmsProps) {
+            return props;
+        }
+
+        String savedProps = "";
+        // Isolated processes cannot access content providers (Settings.*).
+        if (!Process.isIsolated()) {
+            try {
+                savedProps = Settings.Secure.getString(context.getContentResolver(),
+                        Settings.Secure.PIF_DATA);
+                if (TextUtils.isEmpty(savedProps)) {
+                    savedProps = Settings.Secure.getString(context.getContentResolver(),
+                            Settings.Secure.FETCHED_PIF);
+                }
+            } catch (SecurityException e) {
+                Log.e(TAG, "Unable to read PIF settings", e);
+            }
+        }
+
+        if (!TextUtils.isEmpty(savedProps)) {
+            dlog("Parsing props fetched / provided by user");
+            try {
+                JSONObject parsedProps = new JSONObject(savedProps);
+                Iterator<String> keys = parsedProps.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    props.put(key, parsedProps.getString(key));
+                }
+                return props;
+            } catch (JSONException e) {
+                Log.e(TAG, "Error parsing JSON data", e);
+                props.clear();
+            }
+        }
+
+        dlog("Parsing props locally");
+        final String[] certifiedProps = context.getResources().getStringArray(
+                R.array.config_certifiedBuildProperties);
+        for (String entry : certifiedProps) {
             // Each entry must be of the format FIELD:value
             final String[] fieldAndProp = entry.split(":", 2);
             if (fieldAndProp.length != 2) {
                 Log.e(TAG, "Invalid entry in certified props: " + entry);
                 continue;
             }
-            setPropValue(fieldAndProp[0], fieldAndProp[1]);
+            props.put(fieldAndProp[0], fieldAndProp[1]);
         }
+        return props;
+    }
+
+    private static void setCertifiedProps(Map<String, String> certifiedProps) {
+        certifiedProps.forEach((field, value) -> {
+            // Keep the platform security patch selected by vendor/lineage.
+            if (field.equals("VERSION.SECURITY_PATCH")) {
+                return;
+            }
+            // Play Store uses the other device properties for app compatibility.
+            if (sIsFinsky && !sFinskyProps.contains(field)) {
+                return;
+            }
+            setPropValue(field, value);
+        });
     }
 
     private static String readFromFile(File file) {
