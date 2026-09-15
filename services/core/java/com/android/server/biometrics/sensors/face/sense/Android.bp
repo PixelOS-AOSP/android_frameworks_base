@@ -1,0 +1,33 @@
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "frameworks_base_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["frameworks_base_license"],
+}
+
+filegroup {
+    name: "vendor.aospa.biometrics.face.impl-sources",
+    srcs: [
+        "Vendor.java",
+        "VendorImpl.java",
+        "FacePPImpl.java",
+        "MegviiFaceUnlockImpl.java",
+        "ConUtil.java",
+        "UnlockEncryptor.java",
+        "VendorUnlockEncryptor.java",
+        "PreferenceHelper.java",
+        "Lite.java",
+        "FeatureRestoreHelper.java",
+        "LiteApi.java",
+    ],
+    visibility: ["//frameworks/base/services/core"],
+}
+
+java_library_static {
+    name: "vendor.aospa.biometrics.face.impl",
+    srcs: [":vendor.aospa.biometrics.face.impl-sources"],
+    apex_available: ["//apex_available:platform"],
+    visibility: ["//frameworks/base/services/core"],
+}
