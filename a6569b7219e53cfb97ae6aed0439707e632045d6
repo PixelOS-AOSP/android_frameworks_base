@@ -24,6 +24,30 @@
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "5e8f82db_cb839b7e",
+        "filename": "core/java/com/android/internal/util/PropImitationHooks.java",
+        "patchSetId": 2
+      },
+      "lineNbr": 233,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-09-16T13:09:57Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "140696a2_9a642b0d",
+      "range": {
+        "startLine": 233,
+        "startChar": 12,
+        "endLine": 233,
+        "endChar": 43
+      },
+      "revId": "a6569b7219e53cfb97ae6aed0439707e632045d6",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "493af5dd_bf9dff96",
@@ -41,6 +65,24 @@
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "78cdfc18_10cbd6f7",
+        "filename": "core/java/com/android/internal/util/PropImitationHooks.java",
+        "patchSetId": 2
+      },
+      "lineNbr": 286,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-09-16T13:09:57Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "493af5dd_bf9dff96",
+      "revId": "a6569b7219e53cfb97ae6aed0439707e632045d6",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "c8a95c59_c2c58a56",
@@ -54,6 +96,30 @@
       "writtenOn": "2026-09-16T10:39:03Z",
       "side": 1,
       "message": "Convert it to some variable instead.",
+      "range": {
+        "startLine": 318,
+        "startChar": 28,
+        "endLine": 319,
+        "endChar": 55
+      },
+      "revId": "a6569b7219e53cfb97ae6aed0439707e632045d6",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2eb47f35_e1a657b3",
+        "filename": "core/java/com/android/internal/util/PropImitationHooks.java",
+        "patchSetId": 2
+      },
+      "lineNbr": 319,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-09-16T13:09:57Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "c8a95c59_c2c58a56",
       "range": {
         "startLine": 318,
         "startChar": 28,
