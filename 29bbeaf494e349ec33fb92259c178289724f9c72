@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "fc4aabc0_261114ae",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-09-16T05:27:58Z",
+      "side": 1,
+      "message": "McDonalds, HudHud Applications seems to be working\n\nApps like Indrive show up on PlayStore (which did not show up earlier)",
+      "revId": "29bbeaf494e349ec33fb92259c178289724f9c72",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
