@@ -17,6 +17,7 @@ import android.os.Process;
 import android.security.KeyStore2;
 import android.security.KeyStoreException;
 import android.security.keymaster.KeymasterDefs;
+import android.system.keystore2.Domain;
 import android.system.keystore2.KeyDescriptor;
 import android.system.keystore2.KeyMetadata;
 import android.system.keystore2.ResponseCode;
@@ -26,10 +27,8 @@ import android.util.Log;
 import com.android.internal.util.PropImitationHooks;
 import com.android.internal.util.custom.KeyboxChainGenerator.KeyGenParameters;
 
-import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -41,18 +40,19 @@ import java.util.Map;
 public class KeyboxImitationHooks {
     private static final String TAG = "KeyboxImitationHooks";
 
-    // KeyMint rejects longer challenges, but it never sees the challenge on the keybox path.
+    // KeyMint does not see the challenge on the keybox path.
     private static final int MAX_ATTESTATION_CHALLENGE_LENGTH = 128;
 
     /**
-     * Returns the arguments KeyMint should generate the key with when the keybox attests it,
-     * or null to leave generation and attestation entirely with the backend.
+     * Removes backend attestation tags, or returns null for requests the keybox cannot attest.
      */
     @Nullable
     public static Collection<KeyParameter> prepareGenerateKeyParameters(
-            @Nullable KeyDescriptor attestationKey, Collection<KeyParameter> args)
+            KeyDescriptor descriptor, @Nullable KeyDescriptor attestationKey,
+            Collection<KeyParameter> args)
             throws KeyStoreException {
-        if (attestationKey != null) {
+        // BLOB keys have no database entry for updateSubcomponents.
+        if (descriptor.domain == Domain.BLOB || attestationKey != null) {
             return null;
         }
 
@@ -71,8 +71,7 @@ public class KeyboxImitationHooks {
                             return null;
                         }
                     }
-                    // Keystore2 checks permissions for these before KeyMint, and the keybox
-                    // certificate does not carry them. Keep the backend behaviour.
+                    // These identifiers require backend permission checks or attestation support.
                     case Tag.ATTESTATION_ID_SERIAL, Tag.ATTESTATION_ID_IMEI,
                             Tag.ATTESTATION_ID_SECOND_IMEI, Tag.ATTESTATION_ID_MEID,
                             Tag.DEVICE_UNIQUE_ATTESTATION, Tag.INCLUDE_UNIQUE_ID -> {
@@ -84,7 +83,7 @@ public class KeyboxImitationHooks {
             }
             if (challenge == null || !canSign
                     || (algorithm != Algorithm.EC && algorithm != Algorithm.RSA)
-                    || !KeyProviderManager.isKeyboxAvailable()) {
+                    || !KeyProviderManager.isKeyboxAvailable(algorithm)) {
                 return null;
             }
         } catch (RuntimeException e) {
@@ -113,26 +112,17 @@ public class KeyboxImitationHooks {
             KeyGenParameters params = new KeyGenParameters(args.toArray(new KeyParameter[0]));
             applyCertifiedAttestationIds(params);
 
-            Certificate certificate = CertificateFactory.getInstance("X.509")
-                    .generateCertificate(new ByteArrayInputStream(metadata.certificate));
-            // Keystore2 attests the application of the process that called it.
             List<Certificate> chain = KeyboxChainGenerator.generateCertChain(
-                    Process.myUid(), certificate.getPublicKey(), params);
-            if (chain == null || chain.isEmpty()) {
-                throw new IllegalStateException("Keybox certificate chain was not generated");
-            }
-
+                    Process.myUid(), metadata.certificate, params);
             KeyboxUtils.putCertificateChain(certificates, chain.toArray(new Certificate[0]));
         } catch (Exception e) {
             Log.e(TAG, "Keybox certificate preparation failed", e);
-            // KeyMint generated this key without the caller's challenge, so its certificate
-            // cannot answer the attestation request. Fail rather than return it as success.
+            // The backend certificate has no challenge and cannot satisfy this request.
             throw new KeyStoreException(ResponseCode.SYSTEM_ERROR,
                     "Keybox certificate preparation failed");
         }
 
-        // Use the backend key ID, not an alias that may have been rebound. Propagate storage
-        // failures so the caller can clean up the failed generation instead of using stale data.
+        // The key ID still identifies this key if another caller replaces the alias.
         KeyStore2.getInstance().updateSubcomponents(metadata.key,
                 certificates.certificate, certificates.certificateChain);
         metadata.certificate = certificates.certificate;
@@ -159,7 +149,7 @@ public class KeyboxImitationHooks {
         if (context == null) {
             return;
         }
-        // Attest the identity GMS sees through PropImitationHooks, for the requested IDs only.
+        // Use the certified profile for the requested device IDs.
         Map<String, String> props = PropImitationHooks.getCertifiedProps(context);
         params.brand = getCertifiedId(props, "BRAND", params.brand);
         params.device = getCertifiedId(props, "DEVICE", params.device);

@@ -44,11 +44,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -276,8 +274,8 @@ public class PropImitationHooks {
     }
 
     /**
-     * Returns the certified profile as FIELD to value, taken from the user PIF, the fetched PIF
-     * or the overlay, in that order. Empty when GMS prop imitation is disabled.
+     * Returns the user, fetched, or overlay profile, in that order of preference.
+     * Empty when GMS prop imitation is disabled.
      */
     public static Map<String, String> getCertifiedProps(Context context) {
         final Map<String, String> props = new LinkedHashMap<>();
@@ -336,7 +334,7 @@ public class PropImitationHooks {
             if (field.equals("VERSION.SECURITY_PATCH")) {
                 return;
             }
-            // The Play Store sends its device identity for app compatibility; keep it real.
+            // Play Store uses the other device properties for app compatibility.
             if (sIsFinsky && !sFinskyProps.contains(field)) {
                 return;
             }
