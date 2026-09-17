@@ -5,7 +5,6 @@
 package com.android.internal.util.custom;
 
 import android.security.keystore.KeyProperties;
-import android.system.keystore2.KeyEntryResponse;
 import android.system.keystore2.KeyMetadata;
 
 import com.android.internal.org.bouncycastle.asn1.ASN1Sequence;
@@ -27,7 +26,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.RSAPrivateCrtKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -92,7 +90,6 @@ public class KeyboxUtils {
                 ? provider.getEcCertificateChain()
                 : provider.getRsaCertificateChain();
 
-        CertificateFactory factory = CertificateFactory.getInstance("X.509");
         List<Certificate> certs = new ArrayList<>();
 
         for (String certPem : certChainPem) {
@@ -100,10 +97,6 @@ public class KeyboxUtils {
         }
 
         return certs;
-    }
-
-    public static void putCertificateChain(KeyEntryResponse response, Certificate[] chain) throws Exception {
-        putCertificateChain(response.metadata, chain);
     }
 
     public static void putCertificateChain(KeyMetadata metadata, Certificate[] chain) throws Exception {
