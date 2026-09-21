@@ -15,7 +15,6 @@ import org.xmlpull.v1.XmlPullParser;
 
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -163,13 +162,11 @@ public final class KeyProviderManager {
 
         @Override
         public boolean hasKeybox() {
-            if (!keyboxData.containsKey("EC.PRIV") || !keyboxData.containsKey("RSA.PRIV")) {
-                return false;
-            }
-            if (!keyboxData.containsKey("EC.CERT_1") || !keyboxData.containsKey("RSA.CERT_1")) {
-                return false;
-            }
-            return true;
+            boolean hasEc = keyboxData.containsKey("EC.PRIV")
+                    && keyboxData.containsKey("EC.CERT_1");
+            boolean hasRsa = keyboxData.containsKey("RSA.PRIV")
+                    && keyboxData.containsKey("RSA.CERT_1");
+            return hasEc || hasRsa;
         }
 
         @Override
@@ -193,14 +190,20 @@ public final class KeyProviderManager {
         }
 
         private String[] getCertificateChain(String prefix) {
-            List<String> dataList = new ArrayList<>();
+            String keyPrefix = prefix + ".CERT_";
+            List<String> keys = new ArrayList<>();
             for (String key : keyboxData.keySet()) {
-                if (key.startsWith(prefix + ".CERT_")) {
-                    dataList.add(keyboxData.get(key));
+                if (key.startsWith(keyPrefix)) {
+                    keys.add(key);
                 }
             }
-            String[] chain = dataList.toArray(String[]::new);
-            Arrays.sort(chain);
+            keys.sort((a, b) -> Integer.compare(
+                    Integer.parseInt(a.substring(keyPrefix.length())),
+                    Integer.parseInt(b.substring(keyPrefix.length()))));
+            String[] chain = new String[keys.size()];
+            for (int i = 0; i < keys.size(); i++) {
+                chain[i] = keyboxData.get(keys.get(i));
+            }
             return chain;
         }
     }
