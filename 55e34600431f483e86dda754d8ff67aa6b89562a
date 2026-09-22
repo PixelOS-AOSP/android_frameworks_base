@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "6f394afb_b2b0fa82",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-09-22T14:57:22Z",
+      "side": 1,
+      "message": "@me@hridaya.dev why",
+      "revId": "55e34600431f483e86dda754d8ff67aa6b89562a",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
