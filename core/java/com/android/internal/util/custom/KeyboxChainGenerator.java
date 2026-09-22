@@ -27,6 +27,7 @@ import com.android.internal.org.bouncycastle.asn1.ASN1Integer;
 import com.android.internal.org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import com.android.internal.org.bouncycastle.asn1.ASN1OctetString;
 import com.android.internal.org.bouncycastle.asn1.ASN1Sequence;
+import com.android.internal.org.bouncycastle.asn1.ASN1TaggedObject;
 import com.android.internal.org.bouncycastle.asn1.DERNull;
 import com.android.internal.org.bouncycastle.asn1.DEROctetString;
 import com.android.internal.org.bouncycastle.asn1.DERSequence;
@@ -87,6 +88,130 @@ public final class KeyboxChainGenerator {
         List<Certificate> chain = KeyboxUtils.getCertificateChain(algorithm);
         chain.add(0, leaf);
         return chain;
+    }
+
+    /**
+     * Re-sign a KeyMint-attested leaf with the keybox. RootOfTrust becomes locked and
+     * Verified, and requested device IDs use the certified profile. The rest of the
+     * attestation extension is left as KeyMint encoded it.
+     */
+    public static List<Certificate> rewriteAttestedLeaf(byte[] encodedCertificate,
+            KeyGenParameters params) throws Exception {
+        X509CertificateHolder leaf = new X509CertificateHolder(encodedCertificate);
+        Extension attestation = leaf.getExtension(KEY_DESCRIPTION_OID);
+        if (attestation == null) {
+            throw new IllegalArgumentException("Attested leaf has no key description");
+        }
+
+        ASN1Sequence description = ASN1Sequence.getInstance(attestation.getExtnValue().getOctets());
+        if (description.size() < 8) {
+            throw new IllegalArgumentException("Key description is too short");
+        }
+        ASN1Encodable[] fields = new ASN1Encodable[description.size()];
+        for (int i = 0; i < description.size(); i++) {
+            fields[i] = description.getObjectAt(i);
+        }
+        int attestationVersion = ASN1Integer.getInstance(fields[0]).getValue().intValue();
+        fields[7] = new DERSequence(rewriteTeeEnforced(
+                ASN1Sequence.getInstance(fields[7]), attestationVersion, params));
+
+        String algorithm = params.algorithm == Algorithm.EC
+                ? KeyProperties.KEY_ALGORITHM_EC : KeyProperties.KEY_ALGORITHM_RSA;
+        X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
+                KeyboxUtils.getCertificateHolder(algorithm).getSubject(),
+                leaf.getSerialNumber(), leaf.getNotBefore(), leaf.getNotAfter(),
+                leaf.getSubject(), leaf.getSubjectPublicKeyInfo());
+        builder.addExtension(new Extension(KEY_DESCRIPTION_OID, attestation.isCritical(),
+                new DEROctetString(new DERSequence(fields))));
+        if (leaf.getExtensions() != null) {
+            for (ASN1ObjectIdentifier oid : leaf.getExtensions().getExtensionOIDs()) {
+                if (KEY_DESCRIPTION_OID.equals(oid) || Extension.authorityKeyIdentifier.equals(oid)) {
+                    continue;
+                }
+                builder.addExtension(leaf.getExtension(oid));
+            }
+        }
+
+        ContentSigner signer = new JcaContentSignerBuilder(
+                params.algorithm == Algorithm.EC ? "SHA256withECDSA" : "SHA256withRSA")
+                .build(KeyboxUtils.getPrivateKey(algorithm));
+        Certificate rewritten = KeyboxUtils.getCertificateFromHolder(builder.build(signer));
+        List<Certificate> chain = KeyboxUtils.getCertificateChain(algorithm);
+        chain.add(0, rewritten);
+        return chain;
+    }
+
+    private static final ASN1ObjectIdentifier KEY_DESCRIPTION_OID =
+            new ASN1ObjectIdentifier("1.3.6.1.4.1.11129.2.1.17");
+
+    private static List<ASN1Encodable> rewriteTeeEnforced(ASN1Sequence tee, int attestationVersion,
+            KeyGenParameters params) throws Exception {
+        List<Tagged> entries = new ArrayList<>();
+        for (int i = 0; i < tee.size(); i++) {
+            ASN1TaggedObject tagged = ASN1TaggedObject.getInstance(tee.getObjectAt(i));
+            int tag = tagged.getTagNo();
+            if (tag == 704 || attestedId(params, tag) != null) {
+                continue;
+            }
+            entries.add(new Tagged(tag, tee.getObjectAt(i)));
+        }
+        entries.add(new Tagged(704, new DERTaggedObject(true, 704,
+                rootOfTrust(attestationVersion))));
+        addAttestedId(entries, 710, params.brand);
+        addAttestedId(entries, 711, params.device);
+        addAttestedId(entries, 712, params.product);
+        addAttestedId(entries, 716, params.manufacturer);
+        addAttestedId(entries, 717, params.model);
+        entries.sort((a, b) -> Integer.compare(a.tag, b.tag));
+
+        List<ASN1Encodable> encoded = new ArrayList<>(entries.size());
+        for (Tagged entry : entries) {
+            encoded.add(entry.value);
+        }
+        return encoded;
+    }
+
+    private static void addAttestedId(List<Tagged> entries, int tag, byte[] value) {
+        if (value != null) {
+            entries.add(new Tagged(tag, new DERTaggedObject(true, tag, new DEROctetString(value))));
+        }
+    }
+
+    private static byte[] attestedId(KeyGenParameters params, int tag) {
+        return switch (tag) {
+            case 710 -> params.brand;
+            case 711 -> params.device;
+            case 712 -> params.product;
+            case 716 -> params.manufacturer;
+            case 717 -> params.model;
+            default -> null;
+        };
+    }
+
+    private static ASN1Sequence rootOfTrust(int attestationVersion) throws Exception {
+        if (attestationVersion >= 3) {
+            return new DERSequence(new ASN1Encodable[] {
+                    new DEROctetString(getVerifiedBootKey()),
+                    ASN1Boolean.TRUE,
+                    new ASN1Enumerated(0),
+                    new DEROctetString(decodeHexProperty("ro.boot.vbmeta.digest"))
+            });
+        }
+        return new DERSequence(new ASN1Encodable[] {
+                new DEROctetString(getVerifiedBootKey()),
+                ASN1Boolean.TRUE,
+                new ASN1Enumerated(0)
+        });
+    }
+
+    private static final class Tagged {
+        final int tag;
+        final ASN1Encodable value;
+
+        Tagged(int tag, ASN1Encodable value) {
+            this.tag = tag;
+            this.value = value;
+        }
     }
 
     private static ASN1Encodable[] fromIntList(List<Integer> list) {

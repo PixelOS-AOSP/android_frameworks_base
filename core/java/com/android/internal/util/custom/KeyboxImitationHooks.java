@@ -112,8 +112,15 @@ public class KeyboxImitationHooks {
             KeyGenParameters params = new KeyGenParameters(args.toArray(new KeyParameter[0]));
             applyCertifiedAttestationIds(params);
 
-            List<Certificate> chain = KeyboxChainGenerator.generateCertChain(
-                    Process.myUid(), metadata.certificate, params);
+            List<Certificate> chain;
+            try {
+                // Keep KeyMint's attested leaf and only fix boot state and device IDs.
+                chain = KeyboxChainGenerator.rewriteAttestedLeaf(metadata.certificate, params);
+            } catch (Exception e) {
+                Log.i(TAG, "KeyMint leaf was not usable, generating a keybox leaf");
+                chain = KeyboxChainGenerator.generateCertChain(
+                        Process.myUid(), metadata.certificate, params);
+            }
             KeyboxUtils.putCertificateChain(certificates, chain.toArray(new Certificate[0]));
         } catch (Exception e) {
             Log.e(TAG, "Keybox certificate preparation failed", e);
