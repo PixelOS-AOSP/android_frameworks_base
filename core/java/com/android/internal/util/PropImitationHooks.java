@@ -75,10 +75,11 @@ public class PropImitationHooks {
     private static final String PACKAGE_NETFLIX = "com.netflix.mediaclient";
     private static final String PACKAGE_GPHOTOS = "com.google.android.apps.photos";
 
-    private static final Set<String> sFinskyProps = Set.of(
-        "FINGERPRINT",
-        "VERSION.DEVICE_INITIAL_SDK_INT"
-    );
+    // Leave SDK levels real. Writing DEVICE_INITIAL_SDK_INT 32 made GMS hide apps.
+    private static final Set<String> sSkippedCertifiedProps = Set.of(
+            "VERSION.DEVICE_INITIAL_SDK_INT",
+            "VERSION.SDK_INT",
+            "SDK_INT");
 
     private static final ComponentName GMS_ADD_ACCOUNT_ACTIVITY = ComponentName.unflattenFromString(
             "com.google.android.gms/.auth.uiflows.minutemaid.MinuteMaidActivity");
@@ -307,6 +308,7 @@ public class PropImitationHooks {
                     String key = keys.next();
                     props.put(key, parsedProps.getString(key));
                 }
+                fillMatchingSecurityPatch(context, props);
                 return props;
             } catch (JSONException e) {
                 Log.e(TAG, "Error parsing JSON data", e);
@@ -328,14 +330,41 @@ public class PropImitationHooks {
         return props;
     }
 
+    /**
+     * The published profile for this fingerprint has no patch field.
+     * Use the overlay patch when the fingerprint matches.
+     */
+    private static void fillMatchingSecurityPatch(Context context, Map<String, String> props) {
+        if (!TextUtils.isEmpty(props.get("VERSION.SECURITY_PATCH"))) {
+            return;
+        }
+        final String fingerprint = props.get("FINGERPRINT");
+        if (TextUtils.isEmpty(fingerprint) || context.getResources() == null) {
+            return;
+        }
+
+        String overlayFingerprint = null;
+        String overlayPatch = null;
+        for (String entry : context.getResources().getStringArray(
+                R.array.config_certifiedBuildProperties)) {
+            final String[] fieldAndProp = entry.split(":", 2);
+            if (fieldAndProp.length != 2) {
+                continue;
+            }
+            if (fieldAndProp[0].equals("FINGERPRINT")) {
+                overlayFingerprint = fieldAndProp[1];
+            } else if (fieldAndProp[0].equals("VERSION.SECURITY_PATCH")) {
+                overlayPatch = fieldAndProp[1];
+            }
+        }
+        if (fingerprint.equals(overlayFingerprint) && !TextUtils.isEmpty(overlayPatch)) {
+            props.put("VERSION.SECURITY_PATCH", overlayPatch);
+        }
+    }
+
     private static void setCertifiedProps(Map<String, String> certifiedProps) {
         certifiedProps.forEach((field, value) -> {
-            // Keep the platform security patch selected by vendor/lineage.
-            if (field.equals("VERSION.SECURITY_PATCH")) {
-                return;
-            }
-            // Play Store uses the other device properties for app compatibility.
-            if (sIsFinsky && !sFinskyProps.contains(field)) {
+            if (sSkippedCertifiedProps.contains(field)) {
                 return;
             }
             setPropValue(field, value);
