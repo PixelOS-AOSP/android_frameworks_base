@@ -92,8 +92,9 @@ public final class KeyboxChainGenerator {
 
     /**
      * Re-sign a KeyMint-attested leaf with the keybox. RootOfTrust becomes locked and
-     * Verified, and requested device IDs use the certified profile. The rest of the
-     * attestation extension is left as KeyMint encoded it.
+     * Verified, requested device IDs use the certified profile, and OS version and patch
+     * levels follow that profile. Play Integrity compares those fields with the fingerprint.
+     * The rest of the attestation extension is left as KeyMint encoded it.
      */
     public static List<Certificate> rewriteAttestedLeaf(byte[] encodedCertificate,
             KeyGenParameters params) throws Exception {
@@ -147,17 +148,31 @@ public final class KeyboxChainGenerator {
 
     private static List<ASN1Encodable> rewriteTeeEnforced(ASN1Sequence tee, int attestationVersion,
             KeyGenParameters params) throws Exception {
+        Integer osVersion = certifiedOsVersion();
+        boolean replaceOsVersion = osVersion != null;
+        boolean replacePatch = hasCertifiedPatch();
         List<Tagged> entries = new ArrayList<>();
         for (int i = 0; i < tee.size(); i++) {
             ASN1TaggedObject tagged = ASN1TaggedObject.getInstance(tee.getObjectAt(i));
             int tag = tagged.getTagNo();
-            if (tag == 704 || attestedId(params, tag) != null) {
+            if (tag == 704 || attestedId(params, tag) != null
+                    || (replaceOsVersion && tag == 705)
+                    || (replacePatch && (tag == 706 || tag == 718 || tag == 719))) {
                 continue;
             }
             entries.add(new Tagged(tag, tee.getObjectAt(i)));
         }
         entries.add(new Tagged(704, new DERTaggedObject(true, 704,
                 rootOfTrust(attestationVersion))));
+        if (replaceOsVersion) {
+            addIntegerTag(entries, 705, osVersion);
+        }
+        if (replacePatch) {
+            // 706 is YYYYMM. 718 and 719 are YYYYMMDD.
+            addIntegerTag(entries, 706, getPatchLevel());
+            addIntegerTag(entries, 718, getPatchLevelLong());
+            addIntegerTag(entries, 719, getPatchLevelLong());
+        }
         addAttestedId(entries, 710, params.brand);
         addAttestedId(entries, 711, params.device);
         addAttestedId(entries, 712, params.product);
@@ -276,6 +291,42 @@ public final class KeyboxChainGenerator {
                 teeEnforced.toArray(new ASN1Encodable[0]), softwareEnforced, params);
 
         return new Extension(new ASN1ObjectIdentifier("1.3.6.1.4.1.11129.2.1.17"), false, keyDescriptionOctetStr);
+    }
+
+    private static void addIntegerTag(List<Tagged> entries, int tag, int value) {
+        entries.add(new Tagged(tag, new DERTaggedObject(true, tag, new ASN1Integer(value))));
+    }
+
+    @Nullable
+    private static Integer certifiedOsVersion() {
+        String release = Build.VERSION.RELEASE;
+        if (release == null || release.isEmpty() || !Character.isDigit(release.charAt(0))) {
+            return null;
+        }
+        try {
+            return getOsVersion();
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static boolean hasCertifiedPatch() {
+        String patch = Build.VERSION.SECURITY_PATCH;
+        if (patch == null) {
+            return false;
+        }
+        String[] parts = patch.split("-");
+        if (parts.length != 3) {
+            return false;
+        }
+        try {
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]);
+            int day = Integer.parseInt(parts[2]);
+            return year >= 2010 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private static int getOsVersion() {
