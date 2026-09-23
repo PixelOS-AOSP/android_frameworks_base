@@ -49,6 +49,7 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.PropImitationHooks;
+import com.android.internal.util.custom.KeyboxImitationHooks;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -215,7 +216,7 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
         caList[0] = leaf;
 
-        return caList;
+        return KeyboxImitationHooks.hackCertificateChain(caList);
     }
 
     @Override
