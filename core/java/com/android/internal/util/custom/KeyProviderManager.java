@@ -6,6 +6,7 @@ package com.android.internal.util.custom;
 
 import android.app.ActivityThread;
 import android.content.Context;
+import android.hardware.security.keymint.Algorithm;
 import android.provider.Settings;
 import android.util.Log;
 import android.util.Xml;
@@ -15,7 +16,7 @@ import org.xmlpull.v1.XmlPullParser;
 
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,87 @@ public final class KeyProviderManager {
         return getProvider().hasKeybox();
     }
 
+    public static boolean isKeyboxAvailable(int algorithm) {
+        IKeyboxProvider provider = getProvider();
+        return switch (algorithm) {
+            case Algorithm.EC -> provider.getEcPrivateKey() != null
+                    && provider.getEcCertificateChain().length > 0;
+            case Algorithm.RSA -> provider.getRsaPrivateKey() != null
+                    && provider.getRsaCertificateChain().length > 0;
+            default -> false;
+        };
+    }
+
+    public static boolean isValidKeyboxXml(String xml) {
+        try {
+            return !parseKeyboxXml(xml).isEmpty();
+        } catch (Exception e) {
+            Log.e(TAG, "Invalid keybox XML", e);
+            return false;
+        }
+    }
+
+    private static Map<String, String> parseKeyboxXml(String xml) throws Exception {
+        XmlPullParser parser = Xml.newPullParser();
+        parser.setInput(new StringReader(xml));
+        Map<String, String> keys = new HashMap<>();
+        Map<String, String> currentKey = new HashMap<>();
+        String algorithm = null;
+        int certificateCount = 0;
+        int declaredKeyboxes = -1;
+        int keyboxCount = 0;
+
+        for (int event = parser.next(); event != XmlPullParser.END_DOCUMENT;
+                event = parser.next()) {
+            if (event == XmlPullParser.START_TAG) {
+                switch (parser.getName()) {
+                    case "NumberOfKeyboxes":
+                        declaredKeyboxes = Integer.parseInt(parser.nextText().trim());
+                        break;
+                    case "Keybox":
+                        keyboxCount++;
+                        break;
+                    case "Key":
+                        String value = parser.getAttributeValue(null, "algorithm");
+                        algorithm = "ecdsa".equalsIgnoreCase(value) ? "EC"
+                                : "rsa".equalsIgnoreCase(value) ? "RSA" : null;
+                        currentKey.clear();
+                        certificateCount = 0;
+                        break;
+                    case "PrivateKey":
+                    case "Certificate":
+                        if (algorithm == null) {
+                            break;
+                        }
+                        if (!"pem".equalsIgnoreCase(parser.getAttributeValue(null, "format"))) {
+                            throw new IllegalArgumentException("Unsupported keybox format");
+                        }
+                        String suffix = "PrivateKey".equals(parser.getName())
+                                ? ".PRIV" : ".CERT_" + ++certificateCount;
+                        currentKey.put(algorithm + suffix, parser.nextText().trim());
+                        break;
+                }
+            } else if (event == XmlPullParser.END_TAG && "Key".equals(parser.getName())) {
+                // Keep each private key and its chain together; the first complete entry wins.
+                if (algorithm != null && hasKey(currentKey, algorithm)
+                        && currentKey.values().stream().noneMatch(String::isEmpty)
+                        && !hasKey(keys, algorithm)) {
+                    keys.putAll(currentKey);
+                }
+                algorithm = null;
+            }
+        }
+        if (declaredKeyboxes < 1 || declaredKeyboxes != keyboxCount) {
+            throw new IllegalArgumentException("Invalid NumberOfKeyboxes");
+        }
+        return keys;
+    }
+
+    private static boolean hasKey(Map<String, String> keys, String algorithm) {
+        return keys.containsKey(algorithm + ".PRIV")
+                && keys.containsKey(algorithm + ".CERT_1");
+    }
+
     private static class DefaultKeyboxProvider implements IKeyboxProvider {
         private final Map<String, String> keyboxData = new HashMap<>();
 
@@ -54,83 +136,15 @@ public final class KeyProviderManager {
 
         private boolean loadFromXmlSetting(Context ctx) {
             try {
-                String xml = Settings.Secure.getString(ctx.getContentResolver(), Settings.Secure.KEYBOX_DATA);
-                if (xml == null || xml.trim().isEmpty()) return false;
-
-                XmlPullParser p = Xml.newPullParser();
-                p.setInput(new StringReader(xml));
-
-                String currentAlg = null;
-                int certCount = 0;
-                boolean numberOfKeyboxesChecked = false;
-
-                for (int ev = p.next(); ev != XmlPullParser.END_DOCUMENT; ev = p.next()) {
-                    if (ev == XmlPullParser.START_TAG) {
-                        String tag = p.getName();
-                        switch (tag) {
-                            case "NumberOfKeyboxes":
-                                p.next();
-                                numberOfKeyboxesChecked = true;
-                                try {
-                                    int count = Integer.parseInt(p.getText().trim());
-                                    if (count != 1) {
-                                        Log.w(TAG, "Invalid NumberOfKeyboxes: " + count);
-                                        return false;
-                                    }
-                                } catch (NumberFormatException e) {
-                                    Log.w(TAG, "Failed to parse NumberOfKeyboxes", e);
-                                    return false;
-                                }
-                                break;
-
-                            case "Key":
-                                currentAlg = p.getAttributeValue(null, "algorithm");
-                                if ("ecdsa".equalsIgnoreCase(currentAlg)) currentAlg = "EC";
-                                else if ("rsa".equalsIgnoreCase(currentAlg)) currentAlg = "RSA";
-                                else currentAlg = null;
-                                certCount = 0;
-                                break;
-
-                            case "PrivateKey": {
-                                String format = p.getAttributeValue(null, "format");
-                                if (!"pem".equalsIgnoreCase(format)) {
-                                    Log.w(TAG, "Unsupported PrivateKey format: " + format);
-                                    return false;
-                                }
-                                p.next();
-                                if (currentAlg != null) {
-                                    keyboxData.put(currentAlg + ".PRIV", p.getText().trim());
-                                }
-                                break;
-                            }
-
-                            case "Certificate": {
-                                String format = p.getAttributeValue(null, "format");
-                                if (!"pem".equalsIgnoreCase(format)) {
-                                    Log.w(TAG, "Unsupported Certificate format: " + format);
-                                    return false;
-                                }
-                                if (currentAlg != null) {
-                                    p.next();
-                                    certCount++;
-                                    keyboxData.put(currentAlg + ".CERT_" + certCount, p.getText().trim());
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!numberOfKeyboxesChecked) {
-                    Log.w(TAG, "Missing <NumberOfKeyboxes> in keybox XML");
+                String xml = Settings.Secure.getString(ctx.getContentResolver(),
+                        Settings.Secure.KEYBOX_DATA);
+                if (xml == null || xml.trim().isEmpty()) {
                     return false;
                 }
-
+                keyboxData.putAll(parseKeyboxXml(xml));
                 if (!hasKeybox()) {
-                    Log.w(TAG, "Failed to load keybox from XML setting");
                     return false;
                 }
-
                 Log.i(TAG, "Loaded keybox from XML setting");
                 return true;
             } catch (Exception e) {
@@ -163,13 +177,7 @@ public final class KeyProviderManager {
 
         @Override
         public boolean hasKeybox() {
-            if (!keyboxData.containsKey("EC.PRIV") || !keyboxData.containsKey("RSA.PRIV")) {
-                return false;
-            }
-            if (!keyboxData.containsKey("EC.CERT_1") || !keyboxData.containsKey("RSA.CERT_1")) {
-                return false;
-            }
-            return true;
+            return hasKey(keyboxData, "EC") || hasKey(keyboxData, "RSA");
         }
 
         @Override
@@ -193,15 +201,16 @@ public final class KeyProviderManager {
         }
 
         private String[] getCertificateChain(String prefix) {
-            List<String> dataList = new ArrayList<>();
+            String certificatePrefix = prefix + ".CERT_";
+            List<String> certificateKeys = new ArrayList<>();
             for (String key : keyboxData.keySet()) {
-                if (key.startsWith(prefix + ".CERT_")) {
-                    dataList.add(keyboxData.get(key));
+                if (key.startsWith(certificatePrefix)) {
+                    certificateKeys.add(key);
                 }
             }
-            String[] chain = dataList.toArray(String[]::new);
-            Arrays.sort(chain);
-            return chain;
+            certificateKeys.sort(Comparator.comparingInt(
+                    key -> Integer.parseInt(key.substring(certificatePrefix.length()))));
+            return certificateKeys.stream().map(keyboxData::get).toArray(String[]::new);
         }
     }
 }

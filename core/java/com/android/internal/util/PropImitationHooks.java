@@ -79,6 +79,8 @@ public class PropImitationHooks {
 
     private static final Set<String> sFinskyProps = Set.of(
         "FINGERPRINT",
+        "VERSION.RELEASE",
+        "VERSION.SECURITY_PATCH",
         "VERSION.DEVICE_INITIAL_SDK_INT"
     );
 
@@ -332,8 +334,10 @@ public class PropImitationHooks {
 
     private static void setCertifiedProps(Map<String, String> certifiedProps) {
         certifiedProps.forEach((field, value) -> {
-            // Keep the platform security patch selected by vendor/lineage.
-            if (field.equals("VERSION.SECURITY_PATCH")) {
+            // Writing DEVICE_INITIAL_SDK_INT into GMS hid apps. Play Store still
+            // receives the value from its own allowlist.
+            if (!sIsFinsky && (field.equals("VERSION.DEVICE_INITIAL_SDK_INT")
+                    || field.equals("VERSION.SDK_INT") || field.equals("SDK_INT"))) {
                 return;
             }
             // The Play Store sends its device identity for app compatibility; keep it real.

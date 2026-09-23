@@ -202,6 +202,233 @@ public final class KeyboxChainGenerator {
         return result;
     }
 
+    /**
+     * Re-sign a KeyMint-attested leaf with the keybox. The challenge, application id,
+     * and attestation version stay as KeyMint wrote them. Throws when the certificate
+     * has no attestation extension, so the caller can build a leaf instead.
+     */
+    public static List<Certificate> rewriteAttestedLeaf(byte[] encodedCertificate,
+            KeyGenParameters params) throws Exception {
+        X509CertificateHolder leaf = new X509CertificateHolder(encodedCertificate);
+        Extension attestation = leaf.getExtension(KEY_DESCRIPTION_OID);
+        if (attestation == null) {
+            throw new IllegalArgumentException("Attested leaf has no key description");
+        }
+
+        ASN1Sequence description = ASN1Sequence.getInstance(attestation.getExtnValue().getOctets());
+        if (description.size() < 8) {
+            throw new IllegalArgumentException("Key description is too short");
+        }
+        ASN1Encodable[] fields = new ASN1Encodable[description.size()];
+        for (int i = 0; i < description.size(); i++) {
+            fields[i] = description.getObjectAt(i);
+        }
+        int attestationVersion = ASN1Integer.getInstance(fields[0]).getValue().intValue();
+        List<ASN1Encodable> teeEnforced = rewriteTeeEnforced(
+                ASN1Sequence.getInstance(fields[7]), attestationVersion, params);
+        fields[7] = new DERSequence(teeEnforced.toArray(new ASN1Encodable[0]));
+
+        String algorithm = params.algorithm == Algorithm.EC
+                ? KeyProperties.KEY_ALGORITHM_EC : KeyProperties.KEY_ALGORITHM_RSA;
+        X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
+                KeyboxUtils.getCertificateHolder(algorithm).getSubject(),
+                leaf.getSerialNumber(), leaf.getNotBefore(), leaf.getNotAfter(),
+                leaf.getSubject(), leaf.getSubjectPublicKeyInfo());
+        builder.addExtension(new Extension(KEY_DESCRIPTION_OID, attestation.isCritical(),
+                new DEROctetString(new DERSequence(fields))));
+        if (leaf.getExtensions() != null) {
+            for (ASN1ObjectIdentifier oid : leaf.getExtensions().getExtensionOIDs()) {
+                if (KEY_DESCRIPTION_OID.equals(oid) || Extension.authorityKeyIdentifier.equals(oid)) {
+                    continue;
+                }
+                builder.addExtension(leaf.getExtension(oid));
+            }
+        }
+
+        ContentSigner signer = new JcaContentSignerBuilder(
+                params.algorithm == Algorithm.EC ? "SHA256withECDSA" : "SHA256withRSA")
+                .build(KeyboxUtils.getPrivateKey(algorithm));
+        Certificate rewritten = KeyboxUtils.getCertificateFromHolder(builder.build(signer));
+        List<Certificate> chain = KeyboxUtils.getCertificateChain(algorithm);
+        chain.add(0, rewritten);
+        return chain;
+    }
+
+    /**
+     * Build a keybox leaf for a key KeyMint already created. The public key is taken
+     * from that certificate, so the private key KeyMint holds can sign the challenge.
+     */
+    public static List<Certificate> generateCertChain(int uid, byte[] encodedCertificate,
+            KeyGenParameters params) throws Exception {
+        X509CertificateHolder certificate = new X509CertificateHolder(encodedCertificate);
+        String algorithm = params.algorithm == Algorithm.EC
+                ? KeyProperties.KEY_ALGORITHM_EC : KeyProperties.KEY_ALGORITHM_RSA;
+        X509v3CertificateBuilder certBuilder = new X509v3CertificateBuilder(
+                KeyboxUtils.getCertificateHolder(algorithm).getSubject(),
+                certificate.getSerialNumber(), certificate.getNotBefore(),
+                certificate.getNotAfter(), certificate.getSubject(),
+                certificate.getSubjectPublicKeyInfo());
+
+        Extension keyUsage = certificate.getExtension(Extension.keyUsage);
+        if (keyUsage != null) {
+            certBuilder.addExtension(keyUsage);
+        }
+        certBuilder.addExtension(createHardwareAttestation(params, uid));
+
+        ContentSigner contentSigner = new JcaContentSignerBuilder(
+                params.algorithm == Algorithm.EC ? "SHA256withECDSA" : "SHA256withRSA")
+                .build(KeyboxUtils.getPrivateKey(algorithm));
+        Certificate leaf = KeyboxUtils.getCertificateFromHolder(certBuilder.build(contentSigner));
+        List<Certificate> chain = KeyboxUtils.getCertificateChain(algorithm);
+        chain.add(0, leaf);
+        return chain;
+    }
+
+    private static List<ASN1Encodable> rewriteTeeEnforced(ASN1Sequence tee, int attestationVersion,
+            KeyGenParameters params) throws Exception {
+        boolean replacePatch = hasPlatformPatch();
+        List<Tagged> entries = new ArrayList<>();
+        for (int i = 0; i < tee.size(); i++) {
+            ASN1TaggedObject tagged = ASN1TaggedObject.getInstance(tee.getObjectAt(i));
+            int tag = tagged.getTagNo();
+            if (tag == 704 || tag == 705 || attestedId(params, tag) != null
+                    || (replacePatch && (tag == 706 || tag == 718 || tag == 719))) {
+                continue;
+            }
+            entries.add(new Tagged(tag, tee.getObjectAt(i)));
+        }
+        entries.add(new Tagged(704, new DERTaggedObject(true, 704,
+                rootOfTrust(attestationVersion))));
+        // 705 is MMmmss, or 0 when the release is a codename. Canary attests 0.
+        addIntegerTag(entries, 705, getOsVersion());
+        if (replacePatch) {
+            addIntegerTag(entries, 706, getPatchLevel());
+            addIntegerTag(entries, 718, getPatchLevelLong());
+            addIntegerTag(entries, 719, getPatchLevelLong());
+        }
+        addAttestedId(entries, 710, params.brand);
+        addAttestedId(entries, 711, params.device);
+        addAttestedId(entries, 712, params.product);
+        addAttestedId(entries, 716, params.manufacturer);
+        addAttestedId(entries, 717, params.model);
+        entries.sort((left, right) -> Integer.compare(left.tag, right.tag));
+
+        List<ASN1Encodable> encoded = new ArrayList<>(entries.size());
+        for (Tagged entry : entries) {
+            encoded.add(entry.value);
+        }
+        return encoded;
+    }
+
+    private static void addAttestedId(List<Tagged> entries, int tag, byte[] value) {
+        if (value != null) {
+            entries.add(new Tagged(tag, new DERTaggedObject(true, tag, new DEROctetString(value))));
+        }
+    }
+
+    private static byte[] attestedId(KeyGenParameters params, int tag) {
+        return switch (tag) {
+            case 710 -> params.brand;
+            case 711 -> params.device;
+            case 712 -> params.product;
+            case 716 -> params.manufacturer;
+            case 717 -> params.model;
+            default -> null;
+        };
+    }
+
+    private static ASN1Sequence rootOfTrust(int attestationVersion) throws Exception {
+        if (attestationVersion >= 3) {
+            return new DERSequence(new ASN1Encodable[] {
+                    new DEROctetString(getVerifiedBootKey()),
+                    ASN1Boolean.TRUE,
+                    new ASN1Enumerated(0),
+                    new DEROctetString(bootHash())
+            });
+        }
+        return new DERSequence(new ASN1Encodable[] {
+                new DEROctetString(getVerifiedBootKey()),
+                ASN1Boolean.TRUE,
+                new ASN1Enumerated(0)
+        });
+    }
+
+    private static void addIntegerTag(List<Tagged> entries, int tag, int value) {
+        entries.add(new Tagged(tag, new DERTaggedObject(true, tag, new ASN1Integer(value))));
+    }
+
+    private static Extension createHardwareAttestation(KeyGenParameters params, int uid)
+            throws Exception {
+        ASN1Sequence rootOfTrustSeq = rootOfTrust(4);
+
+        List<ASN1Encodable> teeEnforced = new ArrayList<>();
+        if (!params.purpose.isEmpty()) {
+            teeEnforced.add(new DERTaggedObject(true, 1, new DERSet(fromIntList(params.purpose))));
+        }
+        teeEnforced.add(new DERTaggedObject(true, 2, new ASN1Integer(params.algorithm)));
+        teeEnforced.add(new DERTaggedObject(true, 3, new ASN1Integer(params.keySize)));
+        if (!params.digest.isEmpty()) {
+            teeEnforced.add(new DERTaggedObject(true, 5, new DERSet(fromIntList(params.digest))));
+        }
+        if (!params.padding.isEmpty()) {
+            teeEnforced.add(new DERTaggedObject(true, 6, new DERSet(fromIntList(params.padding))));
+        }
+        if (params.algorithm == Algorithm.EC) {
+            teeEnforced.add(new DERTaggedObject(true, 10, new ASN1Integer(params.ecCurve)));
+        } else if (params.algorithm == Algorithm.RSA && params.rsaPublicExponent != null) {
+            teeEnforced.add(new DERTaggedObject(true, 200,
+                    new ASN1Integer(params.rsaPublicExponent)));
+        }
+        if (params.noAuthRequired) {
+            teeEnforced.add(new DERTaggedObject(true, 503, DERNull.INSTANCE));
+        }
+        // KeyOrigin.GENERATED
+        teeEnforced.add(new DERTaggedObject(true, 702, new ASN1Integer(0)));
+        teeEnforced.add(new DERTaggedObject(true, 704, rootOfTrustSeq));
+        teeEnforced.add(new DERTaggedObject(true, 705, new ASN1Integer(getOsVersion())));
+        teeEnforced.add(new DERTaggedObject(true, 706, new ASN1Integer(getPatchLevel())));
+        addAsn1Id(teeEnforced, 710, params.brand);
+        addAsn1Id(teeEnforced, 711, params.device);
+        addAsn1Id(teeEnforced, 712, params.product);
+        addAsn1Id(teeEnforced, 716, params.manufacturer);
+        addAsn1Id(teeEnforced, 717, params.model);
+        teeEnforced.add(new DERTaggedObject(true, 718, new ASN1Integer(getPatchLevelLong())));
+        teeEnforced.add(new DERTaggedObject(true, 719, new ASN1Integer(getPatchLevelLong())));
+
+        ASN1Encodable[] softwareEnforced = {
+                new DERTaggedObject(true, 701, new ASN1Integer(System.currentTimeMillis())),
+                new DERTaggedObject(true, 709, createApplicationId(uid))
+        };
+        return new Extension(KEY_DESCRIPTION_OID, false,
+                getAsn1OctetString(teeEnforced.toArray(new ASN1Encodable[0]), softwareEnforced,
+                        params));
+    }
+
+    private static void addAsn1Id(List<ASN1Encodable> list, int tag, byte[] value) {
+        if (value != null) {
+            list.add(new DERTaggedObject(true, tag, new DEROctetString(value)));
+        }
+    }
+
+    private static byte[] getVerifiedBootKey() throws Exception {
+        byte[] fromProp = decodeHexProperty("ro.boot.vbmeta.public_key_digest");
+        if (fromProp.length == 32) {
+            return fromProp;
+        }
+        String algorithm = KeyProviderManager.isKeyboxAvailable(Algorithm.EC)
+                ? KeyProperties.KEY_ALGORITHM_EC : KeyProperties.KEY_ALGORITHM_RSA;
+        Certificate issuer = KeyboxUtils.getCertificateChain(algorithm).get(0);
+        return MessageDigest.getInstance("SHA-256").digest(issuer.getEncoded());
+    }
+
+    private static byte[] bootHash() {
+        byte[] fromProp = decodeHexProperty("ro.boot.vbmeta.digest");
+        if (fromProp.length == 32) {
+            return fromProp;
+        }
+        return new byte[32];
+    }
+
     private static boolean isHardwareIdTag(int tag) {
         return tag == 710 || tag == 711 || tag == 712 || tag == 713 || tag == 714
                 || tag == 715 || tag == 716 || tag == 717 || tag == 723;
@@ -471,14 +698,20 @@ public final class KeyboxChainGenerator {
 
     private static int getOsVersion() {
         String release = Build.VERSION.RELEASE;
-        int major = 0, minor = 0, patch = 0;
-
-        String[] parts = release.split("\\.");
-        if (parts.length > 0) major = Integer.parseInt(parts[0]);
-        if (parts.length > 1) minor = Integer.parseInt(parts[1]);
-        if (parts.length > 2) patch = Integer.parseInt(parts[2]);
-
-        return major * 10000 + minor * 100 + patch;
+        // Same rule as KeyMint getOsVersion(): a codename release, including CANARY, is 0.
+        if (release == null || release.isEmpty() || !Character.isDigit(release.charAt(0))) {
+            return 0;
+        }
+        try {
+            int major = 0, minor = 0, patch = 0;
+            String[] parts = release.split("\\.");
+            if (parts.length > 0) major = Integer.parseInt(parts[0]);
+            if (parts.length > 1) minor = Integer.parseInt(parts[1]);
+            if (parts.length > 2) patch = Integer.parseInt(parts[2]);
+            return major * 10000 + minor * 100 + patch;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private static boolean hasPlatformPatch() {
@@ -543,7 +776,7 @@ public final class KeyboxChainGenerator {
         return new DEROctetString(keyDescriptionHackSeq);
     }
 
-    private static DEROctetString createApplicationId(int uid) throws Throwable {
+    private static DEROctetString createApplicationId(int uid) throws Exception {
         Context context = ActivityThread.currentApplication();
         if (context == null) {
             throw new IllegalStateException("createApplicationId: context not available from ActivityThread!");
@@ -645,6 +878,8 @@ public final class KeyboxChainGenerator {
 
         public List<Integer> purpose = new ArrayList<>();
         public List<Integer> digest = new ArrayList<>();
+        public List<Integer> padding = new ArrayList<>();
+        public boolean noAuthRequired;
 
         public byte[] attestationChallenge;
         public byte[] brand;
@@ -676,6 +911,8 @@ public final class KeyboxChainGenerator {
                     case Tag.DIGEST -> {
                         digest.add(kp.value.getDigest());
                     }
+                    case Tag.PADDING -> padding.add(kp.value.getPaddingMode());
+                    case Tag.NO_AUTH_REQUIRED -> noAuthRequired = true;
                     case Tag.ATTESTATION_CHALLENGE -> attestationChallenge = kp.value.getBlob();
                     case Tag.ATTESTATION_ID_BRAND -> brand = kp.value.getBlob();
                     case Tag.ATTESTATION_ID_DEVICE -> device = kp.value.getBlob();
