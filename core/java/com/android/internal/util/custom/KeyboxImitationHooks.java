@@ -5,173 +5,88 @@
  */
 package com.android.internal.util.custom;
 
-import android.hardware.security.keymint.Algorithm;
-import android.hardware.security.keymint.KeyParameter;
-import android.hardware.security.keymint.KeyParameterValue;
-import android.hardware.security.keymint.Tag;
-import android.os.Binder;
-import android.system.keystore2.Authorization;
-import android.system.keystore2.IKeystoreSecurityLevel;
-import android.system.keystore2.KeyDescriptor;
-import android.system.keystore2.KeyEntryResponse;
-import android.system.keystore2.KeyMetadata;
+import android.app.ActivityThread;
+import android.content.Context;
+import android.os.Process;
 import android.util.Log;
 
-import com.android.internal.util.custom.KeyboxChainGenerator.KeyGenParameters;
+import com.android.internal.util.PropImitationHooks;
 
 import java.security.cert.Certificate;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @hide
  */
 public class KeyboxImitationHooks {
-
     private static final String TAG = "KeyboxImitationHooks";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
-    private static boolean mSuccess = false;
 
-    public static KeyEntryResponse onGetKeyEntry(KeyDescriptor descriptor) {
-        if (!KeyProviderManager.isKeyboxAvailable()) {
-            return null;
+    // Wallet attests as itself. Play Integrity attests inside Play Services.
+    private static final Set<String> ATTESTATION_PACKAGES = Set.of(
+            "com.android.vending",
+            "com.google.android.gsf",
+            "com.google.android.gms",
+            "com.google.android.contactkeys",
+            "com.google.android.ims",
+            "com.google.android.safetycore",
+            "com.google.android.apps.walletnfcrel",
+            "com.google.android.apps.nbu.paisa.user");
+
+    private static final ThreadLocal<Boolean> sInHack =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    private KeyboxImitationHooks() {}
+
+    /**
+     * Returns a keybox chain for Play Integrity packages. The KeyMint key is unchanged.
+     * Any failure returns the original chain.
+     */
+    public static Certificate[] hackCertificateChain(Certificate[] chain) {
+        if (chain == null || chain.length == 0 || sInHack.get()) {
+            return chain;
         }
-
-        if (!mSuccess) {
-            return null;
-        }
-
-        KeyEntryResponse spoofed = KeyboxUtils.retrieve(Binder.getCallingUid(), descriptor.alias);
-        if (spoofed != null) {
-            dlog("Key entry spoofed");
-            return spoofed;
-        }
-
-        return null;
-    }
-
-    public static KeyMetadata generateKey(IKeystoreSecurityLevel level, KeyDescriptor descriptor, Collection<KeyParameter> args) {
-        if (!KeyProviderManager.isKeyboxAvailable()) {
-            return null;
-        }
-
-        KeyGenParameters params = new KeyGenParameters(args.toArray(new KeyParameter[args.size()]));
-
-        if (params.attestationChallenge == null) {
-            return null;
-        }
-
-        if (params.algorithm != Algorithm.EC && params.algorithm != Algorithm.RSA) {
-            Log.w(TAG, "Unsupported algorithm: " + params.algorithm);
-            return null;
-        }
-
-        int uid = Binder.getCallingUid();
+        sInHack.set(Boolean.TRUE);
         try {
-            List<Certificate> chain = KeyboxChainGenerator.generateCertChain(uid, descriptor, params);
-            if (chain == null || chain.isEmpty()) {
-                return null;
+            if (!shouldHackCaller() || !KeyProviderManager.isKeyboxAvailable()) {
+                return chain;
             }
-            KeyEntryResponse response = buildResponse(level, chain, params, descriptor);
-            if (response == null) {
-                return null;
+            Context context = ActivityThread.currentApplication();
+            if (context == null) {
+                return chain;
             }
-            KeyboxUtils.append(uid, descriptor.alias, response);
-            mSuccess = true;
-            return response.metadata;
+            Map<String, String> props = PropImitationHooks.getCertifiedProps(context);
+            if (props.isEmpty()) {
+                return chain;
+            }
+            Certificate[] hacked = KeyboxChainGenerator.hackCertificateChain(chain, props);
+            return hacked != null ? hacked : chain;
         } catch (Exception e) {
-            Log.e(TAG, "Failed to generate key", e);
-            return null;
+            Log.e(TAG, "Failed to hack certificate chain", e);
+            return chain;
+        } finally {
+            sInHack.set(Boolean.FALSE);
         }
     }
 
-    private static KeyEntryResponse buildResponse(
-            IKeystoreSecurityLevel level,
-            List<Certificate> chain,
-            KeyGenParameters params,
-            KeyDescriptor descriptor
-    ) {
+    private static boolean shouldHackCaller() {
+        String process = ActivityThread.currentProcessName();
+        if (Process.isIsolated()) {
+            return process != null && process.startsWith("com.google.android.gms");
+        }
         try {
-            KeyEntryResponse response = new KeyEntryResponse();
-            KeyMetadata metadata = new KeyMetadata();
-            metadata.keySecurityLevel = params.securityLevel;
-
-            KeyboxUtils.putCertificateChain(metadata, chain.toArray(new Certificate[chain.size()]));
-
-            KeyDescriptor d = new KeyDescriptor();
-            d.domain = descriptor.domain;
-            d.nspace = descriptor.nspace;
-            metadata.key = d;
-
-            List<Authorization> authorizations = new ArrayList<>();
-            Authorization a;
-
-            for (Integer i : params.purpose) {
-                a = new Authorization();
-                a.keyParameter = new KeyParameter();
-                a.keyParameter.tag = Tag.PURPOSE;
-                a.keyParameter.value = KeyParameterValue.keyPurpose(i);
-                a.securityLevel = params.securityLevel;
-                authorizations.add(a);
+            String[] packages = ActivityThread.getPackageManager().getPackagesForUid(Process.myUid());
+            if (packages != null) {
+                for (String pkg : packages) {
+                    if (ATTESTATION_PACKAGES.contains(pkg)) {
+                        return true;
+                    }
+                }
             }
-
-            for (Integer i : params.digest) {
-                a = new Authorization();
-                a.keyParameter = new KeyParameter();
-                a.keyParameter.tag = Tag.DIGEST;
-                a.keyParameter.value = KeyParameterValue.digest(i);
-                a.securityLevel = params.securityLevel;
-                authorizations.add(a);
-            }
-
-            a = new Authorization();
-            a.keyParameter = new KeyParameter();
-            a.keyParameter.tag = Tag.ALGORITHM;
-            a.keyParameter.value = KeyParameterValue.algorithm(params.algorithm);
-            a.securityLevel = params.securityLevel;
-            authorizations.add(a);
-
-            a = new Authorization();
-            a.keyParameter = new KeyParameter();
-            a.keyParameter.tag = Tag.KEY_SIZE;
-            a.keyParameter.value = KeyParameterValue.integer(params.keySize);
-            a.securityLevel = params.securityLevel;
-            authorizations.add(a);
-
-            a = new Authorization();
-            a.keyParameter = new KeyParameter();
-            a.keyParameter.tag = Tag.EC_CURVE;
-            a.keyParameter.value = KeyParameterValue.ecCurve(params.ecCurve);
-            a.securityLevel = params.securityLevel;
-            authorizations.add(a);
-
-            a = new Authorization();
-            a.keyParameter = new KeyParameter();
-            a.keyParameter.tag = Tag.NO_AUTH_REQUIRED;
-            a.keyParameter.value = KeyParameterValue.boolValue(true); // TODO: copy
-            a.securityLevel = params.securityLevel;
-            authorizations.add(a);
-
-            // TODO: ORIGIN, OS_VERSION, OS_PATCHLEVEL, VENDOR_PATCHLEVEL, BOOT_PATCHLEVEL,
-            // CREATION_DATETIME, USER_ID
-
-            metadata.authorizations = authorizations.toArray(new Authorization[0]);
-            response.metadata = metadata;
-            response.iSecurityLevel = level;
-            return response;
         } catch (Exception e) {
-            Log.e(TAG, "Failed to build key entry response", e);
-            return null;
+            Log.w(TAG, "Failed to resolve attestation packages", e);
         }
-    }
-
-    public static void setSuccessFlag(boolean flag) {
-        mSuccess = flag;
-    }
-
-    private static void dlog(String msg) {
-        if (DEBUG) Log.d(TAG, msg);
+        String current = ActivityThread.currentPackageName();
+        return current != null && ATTESTATION_PACKAGES.contains(current);
     }
 }

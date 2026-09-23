@@ -15,6 +15,7 @@ import android.hardware.security.keymint.KeyParameter;
 import android.hardware.security.keymint.Tag;
 import android.os.Binder;
 import android.os.Build;
+import android.os.SystemProperties;
 import android.security.keystore.KeyProperties;
 import android.system.keystore2.KeyDescriptor;
 import android.util.Log;
@@ -28,6 +29,7 @@ import com.android.internal.org.bouncycastle.asn1.ASN1Integer;
 import com.android.internal.org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import com.android.internal.org.bouncycastle.asn1.ASN1OctetString;
 import com.android.internal.org.bouncycastle.asn1.ASN1Sequence;
+import com.android.internal.org.bouncycastle.asn1.ASN1TaggedObject;
 import com.android.internal.org.bouncycastle.asn1.DERNull;
 import com.android.internal.org.bouncycastle.asn1.DEROctetString;
 import com.android.internal.org.bouncycastle.asn1.DERSequence;
@@ -60,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -77,6 +80,250 @@ public final class KeyboxChainGenerator {
     private static final int ATTESTATION_APPLICATION_ID_SIGNATURE_DIGESTS_INDEX = 1;
     private static final int ATTESTATION_PACKAGE_INFO_PACKAGE_NAME_INDEX = 0;
     private static final int ATTESTATION_PACKAGE_INFO_VERSION_INDEX = 1;
+
+    private static final ASN1ObjectIdentifier KEY_DESCRIPTION_OID =
+            new ASN1ObjectIdentifier("1.3.6.1.4.1.11129.2.1.17");
+
+    /**
+     * Re-sign a KeyMint leaf with the keybox. The challenge, application id, and
+     * attestation version stay as KeyMint wrote them. OS version follows the
+     * certified release, because that is what Play Services is shown. Patch levels
+     * follow the platform security patch, which prop imitation does not replace.
+     * Serial and IMEI are removed. Returns null when the leaf cannot be re-signed.
+     */
+    @Nullable
+    public static Certificate[] hackCertificateChain(Certificate[] chain, Map<String, String> props)
+            throws Exception {
+        if (chain == null || chain.length == 0 || props == null || props.isEmpty()) {
+            return null;
+        }
+        X509CertificateHolder leaf = new X509CertificateHolder(chain[0].getEncoded());
+        Extension attestation = leaf.getExtension(KEY_DESCRIPTION_OID);
+        if (attestation == null) {
+            return null;
+        }
+        ASN1Sequence description = ASN1Sequence.getInstance(attestation.getExtnValue().getOctets());
+        if (description.size() < 8) {
+            return null;
+        }
+        ASN1Encodable[] fields = new ASN1Encodable[description.size()];
+        for (int i = 0; i < description.size(); i++) {
+            fields[i] = description.getObjectAt(i);
+        }
+        int attestationVersion = ASN1Integer.getInstance(fields[0]).getValue().intValue();
+        String algorithm = certificateAlgorithm(leaf);
+        if (algorithm == null) {
+            return null;
+        }
+
+        Integer osVersion = osVersionFromRelease(props.get("VERSION.RELEASE"));
+        boolean replacePatch = hasPlatformPatch();
+        ASN1Sequence tee = ASN1Sequence.getInstance(fields[7]);
+        ASN1Encodable originalRoot = null;
+        List<Tagged> entries = new ArrayList<>();
+        for (int i = 0; i < tee.size(); i++) {
+            ASN1TaggedObject tagged = ASN1TaggedObject.getInstance(tee.getObjectAt(i));
+            int tag = tagged.getTagNo();
+            if (tag == 704) {
+                originalRoot = tagged.getBaseObject();
+            }
+            if (tag == 704
+                    || (osVersion != null && tag == 705)
+                    || (replacePatch && (tag == 706 || tag == 718 || tag == 719))
+                    || isHardwareIdTag(tag)) {
+                continue;
+            }
+            entries.add(new Tagged(tag, tee.getObjectAt(i)));
+        }
+
+        byte[] bootKey = verifiedBootKey(originalRoot);
+        byte[] bootHash = bootHash(originalRoot);
+        if (bootKey.length != 32 || (attestationVersion >= 3 && bootHash.length != 32)) {
+            return null;
+        }
+        ASN1Encodable[] rootElements = attestationVersion >= 3
+                ? new ASN1Encodable[] {
+                        new DEROctetString(bootKey),
+                        ASN1Boolean.TRUE,
+                        new ASN1Enumerated(0),
+                        new DEROctetString(bootHash)}
+                : new ASN1Encodable[] {
+                        new DEROctetString(bootKey),
+                        ASN1Boolean.TRUE,
+                        new ASN1Enumerated(0)};
+        entries.add(new Tagged(704, new DERTaggedObject(true, 704, new DERSequence(rootElements))));
+        if (osVersion != null) {
+            entries.add(new Tagged(705, new DERTaggedObject(true, 705, new ASN1Integer(osVersion))));
+        }
+        if (replacePatch) {
+            int patch = getPatchLevel();
+            int patchLong = getPatchLevelLong();
+            entries.add(new Tagged(706, new DERTaggedObject(true, 706, new ASN1Integer(patch))));
+            entries.add(new Tagged(718, new DERTaggedObject(true, 718, new ASN1Integer(patchLong))));
+            entries.add(new Tagged(719, new DERTaggedObject(true, 719, new ASN1Integer(patchLong))));
+        }
+        addProfileId(entries, 710, props.get("BRAND"));
+        addProfileId(entries, 711, props.get("DEVICE"));
+        addProfileId(entries, 712, props.get("PRODUCT"));
+        addProfileId(entries, 716, props.get("MANUFACTURER"));
+        addProfileId(entries, 717, props.get("MODEL"));
+        entries.sort((left, right) -> Integer.compare(left.tag, right.tag));
+
+        List<ASN1Encodable> encoded = new ArrayList<>(entries.size());
+        for (Tagged entry : entries) {
+            encoded.add(entry.value);
+        }
+        fields[7] = new DERSequence(encoded.toArray(new ASN1Encodable[0]));
+
+        X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
+                KeyboxUtils.getCertificateHolder(algorithm).getSubject(),
+                leaf.getSerialNumber(), leaf.getNotBefore(), leaf.getNotAfter(),
+                leaf.getSubject(), leaf.getSubjectPublicKeyInfo());
+        builder.addExtension(new Extension(KEY_DESCRIPTION_OID, attestation.isCritical(),
+                new DEROctetString(new DERSequence(fields))));
+        if (leaf.getExtensions() != null) {
+            for (ASN1ObjectIdentifier oid : leaf.getExtensions().getExtensionOIDs()) {
+                if (KEY_DESCRIPTION_OID.equals(oid) || Extension.authorityKeyIdentifier.equals(oid)) {
+                    continue;
+                }
+                builder.addExtension(leaf.getExtension(oid));
+            }
+        }
+        ContentSigner signer = new JcaContentSignerBuilder(
+                KeyProperties.KEY_ALGORITHM_EC.equals(algorithm) ? "SHA256withECDSA" : "SHA256withRSA")
+                .build(KeyboxUtils.getPrivateKey(algorithm));
+        Certificate rewritten = KeyboxUtils.getCertificateFromHolder(builder.build(signer));
+        List<Certificate> keyboxChain = KeyboxUtils.getCertificateChain(algorithm);
+        Certificate[] result = new Certificate[keyboxChain.size() + 1];
+        result[0] = rewritten;
+        for (int i = 0; i < keyboxChain.size(); i++) {
+            result[i + 1] = keyboxChain.get(i);
+        }
+        return result;
+    }
+
+    private static boolean isHardwareIdTag(int tag) {
+        return tag == 710 || tag == 711 || tag == 712 || tag == 713 || tag == 714
+                || tag == 715 || tag == 716 || tag == 717 || tag == 723;
+    }
+
+    private static void addProfileId(List<Tagged> entries, int tag, String value) {
+        if (value != null && !value.isEmpty()) {
+            entries.add(new Tagged(tag, new DERTaggedObject(true, tag,
+                    new DEROctetString(value.getBytes(StandardCharsets.UTF_8)))));
+        }
+    }
+
+    // KeyMint uses 0 when the release is a codename, including CANARY.
+    private static Integer osVersionFromRelease(String release) {
+        if (release == null || release.isEmpty()) {
+            return null;
+        }
+        if (!Character.isDigit(release.charAt(0))) {
+            return 0;
+        }
+        try {
+            int major = 0;
+            int minor = 0;
+            int patch = 0;
+            String[] parts = release.split("\\.");
+            if (parts.length > 0) major = Integer.parseInt(parts[0]);
+            if (parts.length > 1) minor = Integer.parseInt(parts[1]);
+            if (parts.length > 2) patch = Integer.parseInt(parts[2]);
+            return major * 10000 + minor * 100 + patch;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static String certificateAlgorithm(X509CertificateHolder leaf) {
+        String oid = leaf.getSubjectPublicKeyInfo().getAlgorithm().getAlgorithm().getId();
+        IKeyboxProvider provider = KeyProviderManager.getProvider();
+        if ("1.2.840.10045.2.1".equals(oid)) {
+            String[] chain = provider.getEcCertificateChain();
+            if (provider.getEcPrivateKey() != null && chain != null && chain.length > 0) {
+                return KeyProperties.KEY_ALGORITHM_EC;
+            }
+            return null;
+        }
+        if (oid != null && oid.startsWith("1.2.840.113549.1.1")) {
+            String[] chain = provider.getRsaCertificateChain();
+            if (provider.getRsaPrivateKey() != null && chain != null && chain.length > 0) {
+                return KeyProperties.KEY_ALGORITHM_RSA;
+            }
+        }
+        return null;
+    }
+
+    private static byte[] verifiedBootKey(ASN1Encodable originalRoot) {
+        byte[] fromProp = decodeHexProperty("ro.boot.vbmeta.public_key_digest");
+        if (fromProp.length == 32) {
+            return fromProp;
+        }
+        byte[] fromLeaf = sequenceOctet(originalRoot, 0);
+        return fromLeaf != null ? fromLeaf : new byte[0];
+    }
+
+    private static byte[] bootHash(ASN1Encodable originalRoot) {
+        byte[] fromProp = decodeHexProperty("ro.boot.vbmeta.digest");
+        if (fromProp.length == 32) {
+            return fromProp;
+        }
+        byte[] fromLeaf = sequenceOctet(originalRoot, 3);
+        return fromLeaf != null ? fromLeaf : new byte[0];
+    }
+
+    private static byte[] sequenceOctet(ASN1Encodable root, int index) {
+        if (root == null) {
+            return null;
+        }
+        ASN1Encodable primitive = root.toASN1Primitive();
+        if (primitive instanceof ASN1TaggedObject) {
+            primitive = ((ASN1TaggedObject) primitive).getBaseObject().toASN1Primitive();
+        }
+        if (!(primitive instanceof ASN1Sequence)) {
+            return null;
+        }
+        ASN1Sequence sequence = (ASN1Sequence) primitive;
+        if (sequence.size() <= index) {
+            return null;
+        }
+        ASN1Encodable element = sequence.getObjectAt(index).toASN1Primitive();
+        if (element instanceof ASN1OctetString) {
+            return ((ASN1OctetString) element).getOctets();
+        }
+        return null;
+    }
+
+    private static byte[] decodeHexProperty(String name) {
+        String value = SystemProperties.get(name, "");
+        if (value.startsWith("0x") || value.startsWith("0X")) {
+            value = value.substring(2);
+        }
+        if ((value.length() & 1) != 0) {
+            return new byte[0];
+        }
+        byte[] out = new byte[value.length() / 2];
+        for (int i = 0; i < out.length; i++) {
+            int hi = Character.digit(value.charAt(i * 2), 16);
+            int lo = Character.digit(value.charAt(i * 2 + 1), 16);
+            if (hi < 0 || lo < 0) {
+                return new byte[0];
+            }
+            out[i] = (byte) ((hi << 4) + lo);
+        }
+        return out;
+    }
+
+    private static final class Tagged {
+        final int tag;
+        final ASN1Encodable value;
+
+        Tagged(int tag, ASN1Encodable value) {
+            this.tag = tag;
+            this.value = value;
+        }
+    }
 
     public static List<Certificate> generateCertChain(int uid, KeyDescriptor descriptor, KeyGenParameters params) {
         dlog("Requested KeyPair with alias: " + descriptor.alias);
@@ -232,6 +479,25 @@ public final class KeyboxChainGenerator {
         if (parts.length > 2) patch = Integer.parseInt(parts[2]);
 
         return major * 10000 + minor * 100 + patch;
+    }
+
+    private static boolean hasPlatformPatch() {
+        String patch = Build.VERSION.SECURITY_PATCH;
+        if (patch == null) {
+            return false;
+        }
+        String[] parts = patch.split("-");
+        if (parts.length != 3) {
+            return false;
+        }
+        try {
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]);
+            int day = Integer.parseInt(parts[2]);
+            return year >= 2010 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private static int getPatchLevel() {
