@@ -5511,6 +5511,10 @@ public final class Settings {
         @Readable
         public static final String PEAK_REFRESH_RATE = "peak_refresh_rate";
 
+        /** @hide */
+        public static final String USER_PREFERRED_PHYSICAL_REFRESH_RATE =
+                "user_preferred_physical_refresh_rate";
+
         /**
          * Control lock behavior on fold
          *
@@ -7292,6 +7296,7 @@ public final class Settings {
             PRIVATE_SETTINGS.add(LIVE_DISPLAY_HINTED);
             PRIVATE_SETTINGS.add(DISPLAY_ANTI_FLICKER);
             PRIVATE_SETTINGS.add(LOW_POWER_REFRESH_RATE);
+            PRIVATE_SETTINGS.add(USER_PREFERRED_PHYSICAL_REFRESH_RATE);
             PRIVATE_SETTINGS.add(HIGH_TOUCH_POLLING_RATE_ENABLE);
             PRIVATE_SETTINGS.add(HIGH_TOUCH_SENSITIVITY_ENABLE);
             PRIVATE_SETTINGS.add(LOCKSCREEN_ENABLE_POWER_MENU);
