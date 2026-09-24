@@ -225,6 +225,22 @@ public class KeyboxImitationHooks {
         }
     }
 
+    /**
+     * Play Integrity packages with a keybox use a software key when KeyMint
+     * cannot mint an attested leaf. Curve25519 and requests without a challenge
+     * stay with the backend.
+     */
+    public static boolean shouldGenerateSoftwareKey(int algorithm, byte[] challenge) {
+        if (challenge == null || challenge.length == 0
+                || challenge.length > MAX_ATTESTATION_CHALLENGE_LENGTH) {
+            return false;
+        }
+        if (algorithm != Algorithm.EC && algorithm != Algorithm.RSA) {
+            return false;
+        }
+        return shouldHackCaller() && KeyProviderManager.isKeyboxAvailable(algorithm);
+    }
+
     private static boolean shouldHackCaller() {
         String process = ActivityThread.currentProcessName();
         if (Process.isIsolated()) {

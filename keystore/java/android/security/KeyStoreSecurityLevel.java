@@ -168,8 +168,9 @@ public class KeyStoreSecurityLevel {
             throws KeyStoreException {
         StrictMode.noteDiskWrite();
 
-        // Null unless the keybox should attest this key. The list is the same request
-        // with factory attestation tags removed, used only when KeyMint refuses to attest.
+        // Null unless a loaded keybox can attest this request. The hardware key is
+        // re-signed only when KeyMint actually returns a leaf. A broken TEE is handled
+        // by the key pair generator, which imports a software key instead of retrying.
         Collection<KeyParameter> stripped =
                 KeyboxImitationHooks.prepareGenerateKeyParameters(descriptor, attestationKey, args);
         if (stripped == null) {
@@ -178,17 +179,9 @@ public class KeyStoreSecurityLevel {
                     flags, entropy));
         }
 
-        KeyMetadata metadata;
-        try {
-            metadata = retryBusyException(() -> mSecurityLevel.generateKey(
-                    descriptor, attestationKey, args.toArray(new KeyParameter[args.size()]),
-                    flags, entropy));
-        } catch (KeyStoreException e) {
-            metadata = retryBusyException(() -> mSecurityLevel.generateKey(
-                    descriptor, attestationKey,
-                    stripped.toArray(new KeyParameter[stripped.size()]),
-                    flags, entropy));
-        }
+        KeyMetadata metadata = retryBusyException(() -> mSecurityLevel.generateKey(
+                descriptor, attestationKey, args.toArray(new KeyParameter[args.size()]),
+                flags, entropy));
         KeyboxImitationHooks.updateCertificateChain(metadata, args);
         return metadata;
     }

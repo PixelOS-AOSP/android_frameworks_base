@@ -116,7 +116,7 @@ public final class KeyboxChainGenerator {
             return null;
         }
 
-        Integer osVersion = osVersionFromRelease(props.get("VERSION.RELEASE"));
+        int osVersion = getOsVersion();
         boolean replacePatch = hasPlatformPatch();
         ASN1Sequence tee = ASN1Sequence.getInstance(fields[7]);
         ASN1Encodable originalRoot = null;
@@ -128,7 +128,7 @@ public final class KeyboxChainGenerator {
                 originalRoot = tagged.getBaseObject();
             }
             if (tag == 704
-                    || (osVersion != null && tag == 705)
+                    || tag == 705
                     || (replacePatch && (tag == 706 || tag == 718 || tag == 719))
                     || isHardwareIdTag(tag)) {
                 continue;
@@ -152,9 +152,7 @@ public final class KeyboxChainGenerator {
                         ASN1Boolean.TRUE,
                         new ASN1Enumerated(0)};
         entries.add(new Tagged(704, new DERTaggedObject(true, 704, new DERSequence(rootElements))));
-        if (osVersion != null) {
-            entries.add(new Tagged(705, new DERTaggedObject(true, 705, new ASN1Integer(osVersion))));
-        }
+        entries.add(new Tagged(705, new DERTaggedObject(true, 705, new ASN1Integer(osVersion))));
         if (replacePatch) {
             int patch = getPatchLevel();
             int patchLong = getPatchLevelLong();
@@ -279,6 +277,44 @@ public final class KeyboxChainGenerator {
                 params.algorithm == Algorithm.EC ? "SHA256withECDSA" : "SHA256withRSA")
                 .build(KeyboxUtils.getPrivateKey(algorithm));
         Certificate leaf = KeyboxUtils.getCertificateFromHolder(certBuilder.build(contentSigner));
+        List<Certificate> chain = KeyboxUtils.getCertificateChain(algorithm);
+        chain.add(0, leaf);
+        return chain;
+    }
+
+    /**
+     * Certificate for a software key imported after KeyMint refuses attestation.
+     * The attestation version follows the platform SDK, the same value Evolution X
+     * uses when it decides the TEE is broken.
+     */
+    public static List<Certificate> generateSoftwareChain(KeyPair keyPair, KeyGenParameters params,
+            int uid) throws Exception {
+        String algorithm = params.algorithm == Algorithm.EC
+                ? KeyProperties.KEY_ALGORITHM_EC : KeyProperties.KEY_ALGORITHM_RSA;
+        BigInteger serial = params.certificateSerial != null
+                ? params.certificateSerial : BigInteger.ONE;
+        Date notBefore = params.certificateNotBefore != null
+                ? params.certificateNotBefore : new Date(0);
+        Date notAfter = params.certificateNotAfter != null
+                ? params.certificateNotAfter : new Date(2461449600000L);
+        X500Name subject = params.certificateSubject != null
+                ? params.certificateSubject : new X500Name("CN=Android Keystore Key");
+        SubjectPublicKeyInfo publicKey = SubjectPublicKeyInfo.getInstance(
+                keyPair.getPublic().getEncoded());
+
+        X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
+                KeyboxUtils.getCertificateHolder(algorithm).getSubject(),
+                serial, notBefore, notAfter, subject, publicKey);
+        builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign));
+        builder.addExtension(createHardwareAttestation(params, uid));
+
+        JcaContentSignerBuilder signerBuilder = new JcaContentSignerBuilder(
+                params.algorithm == Algorithm.EC ? "SHA256withECDSA" : "SHA256withRSA");
+        if (params.algorithm == Algorithm.EC) {
+            signerBuilder.setProvider(new BouncyCastleProvider());
+        }
+        ContentSigner signer = signerBuilder.build(KeyboxUtils.getPrivateKey(algorithm));
+        Certificate leaf = KeyboxUtils.getCertificateFromHolder(builder.build(signer));
         List<Certificate> chain = KeyboxUtils.getCertificateChain(algorithm);
         chain.add(0, leaf);
         return chain;
@@ -426,7 +462,11 @@ public final class KeyboxChainGenerator {
         if (fromProp.length == 32) {
             return fromProp;
         }
-        return new byte[32];
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(getVerifiedBootKey());
+        } catch (Exception e) {
+            return new byte[32];
+        }
     }
 
     private static boolean isHardwareIdTag(int tag) {
@@ -438,28 +478,6 @@ public final class KeyboxChainGenerator {
         if (value != null && !value.isEmpty()) {
             entries.add(new Tagged(tag, new DERTaggedObject(true, tag,
                     new DEROctetString(value.getBytes(StandardCharsets.UTF_8)))));
-        }
-    }
-
-    // KeyMint uses 0 when the release is a codename, including CANARY.
-    private static Integer osVersionFromRelease(String release) {
-        if (release == null || release.isEmpty()) {
-            return null;
-        }
-        if (!Character.isDigit(release.charAt(0))) {
-            return 0;
-        }
-        try {
-            int major = 0;
-            int minor = 0;
-            int patch = 0;
-            String[] parts = release.split("\\.");
-            if (parts.length > 0) major = Integer.parseInt(parts[0]);
-            if (parts.length > 1) minor = Integer.parseInt(parts[1]);
-            if (parts.length > 2) patch = Integer.parseInt(parts[2]);
-            return major * 10000 + minor * 100 + patch;
-        } catch (NumberFormatException e) {
-            return 0;
         }
     }
 
@@ -696,21 +714,48 @@ public final class KeyboxChainGenerator {
         return null;
     }
 
+    // Evolution X maps the SDK, not the release string. A CANARY release therefore
+    // keeps the platform OS version instead of becoming 0.
     private static int getOsVersion() {
-        String release = Build.VERSION.RELEASE;
-        // Same rule as KeyMint getOsVersion(): a codename release, including CANARY, is 0.
-        if (release == null || release.isEmpty() || !Character.isDigit(release.charAt(0))) {
-            return 0;
+        switch (Build.VERSION.SDK_INT) {
+            case Build.VERSION_CODES.Q:
+                return 100000;
+            case Build.VERSION_CODES.R:
+                return 110000;
+            case Build.VERSION_CODES.S:
+                return 120000;
+            case Build.VERSION_CODES.S_V2:
+                return 120100;
+            case Build.VERSION_CODES.TIRAMISU:
+                return 130000;
+            case Build.VERSION_CODES.UPSIDE_DOWN_CAKE:
+                return 140000;
+            case Build.VERSION_CODES.VANILLA_ICE_CREAM:
+                return 150000;
+            case Build.VERSION_CODES.BAKLAVA:
+                return 160000;
+            case Build.VERSION_CODES.CINNAMON_BUN:
+                return 170000;
+            default:
+                return 170000;
         }
-        try {
-            int major = 0, minor = 0, patch = 0;
-            String[] parts = release.split("\\.");
-            if (parts.length > 0) major = Integer.parseInt(parts[0]);
-            if (parts.length > 1) minor = Integer.parseInt(parts[1]);
-            if (parts.length > 2) patch = Integer.parseInt(parts[2]);
-            return major * 10000 + minor * 100 + patch;
-        } catch (NumberFormatException e) {
-            return 0;
+    }
+
+    private static int getAttestVersion() {
+        switch (Build.VERSION.SDK_INT) {
+            case Build.VERSION_CODES.Q:
+            case Build.VERSION_CODES.R:
+                return 4;
+            case Build.VERSION_CODES.S:
+            case Build.VERSION_CODES.S_V2:
+                return 100;
+            case Build.VERSION_CODES.TIRAMISU:
+                return 200;
+            case Build.VERSION_CODES.UPSIDE_DOWN_CAKE:
+            case Build.VERSION_CODES.VANILLA_ICE_CREAM:
+                return 300;
+            default:
+                return 400;
         }
     }
 
@@ -759,9 +804,10 @@ public final class KeyboxChainGenerator {
     }
 
     private static ASN1OctetString getAsn1OctetString(ASN1Encodable[] teeEnforcedEncodables, ASN1Encodable[] softwareEnforcedEncodables, KeyGenParameters params) throws IOException {
-        ASN1Integer attestationVersion = new ASN1Integer(100);
+        int attestVersion = getAttestVersion();
+        ASN1Integer attestationVersion = new ASN1Integer(attestVersion);
         ASN1Enumerated attestationSecurityLevel = new ASN1Enumerated(1);
-        ASN1Integer keymasterVersion = new ASN1Integer(100);
+        ASN1Integer keymasterVersion = new ASN1Integer(attestVersion == 4 ? 41 : attestVersion);
         ASN1Enumerated keymasterSecurityLevel = new ASN1Enumerated(1);
         ASN1OctetString attestationChallenge = new DEROctetString(params.attestationChallenge);
         ASN1OctetString uniqueId = new DEROctetString("".getBytes());
@@ -799,7 +845,7 @@ public final class KeyboxChainGenerator {
 
         for (int i = 0; i < size; i++) {
             String name = packages[i];
-            PackageInfo info = pm.getPackageInfo(name, PackageManager.GET_SIGNATURES);
+            PackageInfo info = pm.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES);
             ASN1Encodable[] arr = new ASN1Encodable[2];
             arr[ATTESTATION_PACKAGE_INFO_PACKAGE_NAME_INDEX] =
                     new DEROctetString(name.getBytes(StandardCharsets.UTF_8));
@@ -807,8 +853,16 @@ public final class KeyboxChainGenerator {
                     new ASN1Integer(info.getLongVersionCode());
             packageInfoAA[i] = new DERSequence(arr);
 
-            for (Signature s : info.signatures) {
-                signatures.add(new Digest(dg.digest(s.toByteArray())));
+            Signature[] signers = null;
+            if (info.signingInfo != null) {
+                signers = info.signingInfo.hasMultipleSigners()
+                        ? info.signingInfo.getApkContentsSigners()
+                        : info.signingInfo.getSigningCertificateHistory();
+            }
+            if (signers != null) {
+                for (Signature s : signers) {
+                    signatures.add(new Digest(dg.digest(s.toByteArray())));
+                }
             }
         }
 
