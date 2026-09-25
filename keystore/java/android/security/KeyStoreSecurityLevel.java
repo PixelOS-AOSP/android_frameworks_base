@@ -33,8 +33,6 @@ import android.system.keystore2.KeyMetadata;
 import android.system.keystore2.ResponseCode;
 import android.util.Log;
 
-import com.android.internal.util.custom.KeyboxImitationHooks;
-
 import java.util.Calendar;
 import java.util.Collection;
 
@@ -168,22 +166,9 @@ public class KeyStoreSecurityLevel {
             throws KeyStoreException {
         StrictMode.noteDiskWrite();
 
-        // Null unless a loaded keybox can attest this request. The hardware key is
-        // re-signed only when KeyMint actually returns a leaf. A broken TEE is handled
-        // by the key pair generator, which imports a software key instead of retrying.
-        Collection<KeyParameter> stripped =
-                KeyboxImitationHooks.prepareGenerateKeyParameters(descriptor, attestationKey, args);
-        if (stripped == null) {
-            return retryBusyException(() -> mSecurityLevel.generateKey(
-                    descriptor, attestationKey, args.toArray(new KeyParameter[args.size()]),
-                    flags, entropy));
-        }
-
-        KeyMetadata metadata = retryBusyException(() -> mSecurityLevel.generateKey(
+        return retryBusyException(() -> mSecurityLevel.generateKey(
                 descriptor, attestationKey, args.toArray(new KeyParameter[args.size()]),
                 flags, entropy));
-        KeyboxImitationHooks.updateCertificateChain(metadata, args);
-        return metadata;
     }
 
     /**

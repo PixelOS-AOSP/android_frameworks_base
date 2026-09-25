@@ -453,6 +453,11 @@ public class SettingsProvider extends ContentProvider {
         handler.post(() -> {
             registerBroadcastReceivers();
             startWatchingUserRestrictionChanges();
+            try {
+                com.android.internal.util.PropImitationHooks.publishPifProps(getContext());
+            } catch (Throwable t) {
+                Slog.e(LOG_TAG, "Failed to publish PIF props", t);
+            }
         });
         ServiceManager.addService("settings", new SettingsService(this));
         ServiceManager.addService("device_config", new DeviceConfigService(this));

@@ -18,10 +18,7 @@
 
 package com.android.internal.util;
 
-import android.app.ActivityTaskManager;
 import android.app.Application;
-import android.app.TaskStackListener;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.res.Resources;
 import android.os.Build;
@@ -34,7 +31,6 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.internal.R;
-import com.android.internal.util.custom.KeyProviderManager;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -45,11 +41,9 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -66,9 +60,20 @@ public class PropImitationHooks {
     private static final Boolean sDisableGmsProps = SystemProperties.getBoolean(
             "persist.sys.pihooks.disable.gms_props", false);
 
-    private static final Boolean sDisableKeyAttestationBlock = SystemProperties.getBoolean(
-            "persist.sys.pihooks.disable.gms_key_attestation_block", false);
     private static final String DATA_FILE = "gms_certified_props.json";
+
+    // Same fields inject_s writes into Build / Build.VERSION. Short names stay
+    // under the 32-character property limit so an isolated DroidGuard process
+    // can read them without Settings.
+    private static final String[] PUBLISHED_FIELDS = {
+            "FINGERPRINT", "MANUFACTURER", "MODEL", "BRAND", "PRODUCT", "DEVICE",
+            "VERSION.RELEASE", "ID", "VERSION.INCREMENTAL", "TYPE", "TAGS",
+            "VERSION.SECURITY_PATCH"
+    };
+    private static final String[] FINGERPRINT_FIELDS = {
+            "BRAND", "PRODUCT", "DEVICE", "VERSION.RELEASE", "ID",
+            "VERSION.INCREMENTAL", "TYPE", "TAGS"
+    };
 
     private static final String PACKAGE_ARCORE = "com.google.ar.core";
     private static final String PACKAGE_FINSKY = "com.android.vending";
@@ -77,15 +82,19 @@ public class PropImitationHooks {
     private static final String PACKAGE_NETFLIX = "com.netflix.mediaclient";
     private static final String PACKAGE_GPHOTOS = "com.google.android.apps.photos";
 
-    private static final Set<String> sFinskyProps = Set.of(
-        "FINGERPRINT",
-        "VERSION.RELEASE",
-        "VERSION.SECURITY_PATCH",
-        "VERSION.DEVICE_INITIAL_SDK_INT"
+    private static final Set<String> sSkippedCertifiedProps = Set.of(
+            "VERSION.DEVICE_INITIAL_SDK_INT",
+            "DEVICE_INITIAL_SDK_INT",
+            "VERSION.SDK_INT",
+            "SDK_INT",
+            "spoofBuild",
+            "spoofProps",
+            "spoofProvider",
+            "spoofSignature",
+            "spoofVendingBuild",
+            "spoofVendingSdk",
+            "DEBUG"
     );
-
-    private static final ComponentName GMS_ADD_ACCOUNT_ACTIVITY = ComponentName.unflattenFromString(
-            "com.google.android.gms/.auth.uiflows.minutemaid.MinuteMaidActivity");
 
     private static final String FEATURE_NEXUS_PRELOAD =
             "com.google.android.apps.photos.NEXUS_PRELOAD";
@@ -182,11 +191,7 @@ public class PropImitationHooks {
          * Set Pixel XL for Google Photos
          */
         if (sIsGms || sIsFinsky) {
-            if (!android.os.Process.isIsolated()) {
-                setPlayIntegrityProps(context);
-            } else {
-                dlog("Not setting Play Integrity props in isolated process");
-            }
+            setPlayIntegrityProps(context);
         } else if (!sStockFp.isEmpty() && packageName.equals(PACKAGE_ARCORE)) {
             dlog("Setting stock fingerprint for: " + packageName);
             setPropValue("FINGERPRINT", sStockFp);
@@ -233,47 +238,37 @@ public class PropImitationHooks {
             return;
         }
 
-        // Guard: isolated processes cannot access content providers (Settings.*).
-        if (android.os.Process.isIsolated()) {
-            dlog("Skipping setPlayIntegrityProps in isolated process");
-            return;
-        }
-
         final Map<String, String> certifiedProps = getCertifiedProps(context);
         if (certifiedProps.isEmpty()) {
             dlog("Certified props are not set");
             return;
         }
 
-        if (sIsFinsky) {
-            setCertifiedProps(certifiedProps);
+        dlog("Spoofing build for " + (sIsFinsky ? "Play Store" : "GMS"));
+        setCertifiedProps(certifiedProps);
+    }
+
+    /**
+     * Copies the active profile into properties an isolated DroidGuard process can read.
+     * Called from the settings provider, which can write persist properties.
+     */
+    public static void publishPifProps(Context context) {
+        if (context == null || sDisableGmsProps) {
             return;
         }
-
-        final boolean was = isGmsAddAccountActivityOnTop();
-        final TaskStackListener taskStackListener = new TaskStackListener() {
-            @Override
-            public void onTaskStackChanged() {
-                final boolean is = isGmsAddAccountActivityOnTop();
-                if (is ^ was) {
-                    dlog("GmsAddAccountActivityOnTop is:" + is + " was:" + was +
-                            ", killing myself!"); // process will restart automatically later
-                    Process.killProcess(Process.myPid());
-                }
-            }
-        };
-
-        if (!was) {
-            dlog("Spoofing build for GMS");
-            setCertifiedProps(certifiedProps);
-        } else {
-            dlog("Skip spoofing build for GMS, because GmsAddAccountActivityOnTop");
+        Map<String, String> props = new LinkedHashMap<>();
+        if (!readSettingsProfile(context, props) && props.isEmpty()) {
+            readOverlayProfile(context, props);
         }
-
-        try {
-            ActivityTaskManager.getService().registerTaskStackListener(taskStackListener);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to register task stack listener!", e);
+        normalizeCertifiedProps(props);
+        for (String field : PUBLISHED_FIELDS) {
+            String name = publishedPropName(field);
+            String value = props.get(field);
+            try {
+                SystemProperties.set(name, value == null ? "" : value);
+            } catch (Exception e) {
+                Log.w(TAG, "Unable to publish " + name, e);
+            }
         }
     }
 
@@ -283,45 +278,62 @@ public class PropImitationHooks {
      */
     public static Map<String, String> getCertifiedProps(Context context) {
         final Map<String, String> props = new LinkedHashMap<>();
-        if (sDisableGmsProps) {
+        if (sDisableGmsProps || context == null) {
             return props;
         }
 
-        String savedProps = null;
-        // Isolated processes cannot access content providers (Settings.*).
         if (!Process.isIsolated()) {
-            try {
+            readSettingsProfile(context, props);
+        }
+        if (props.isEmpty() && Process.isIsolated()) {
+            readPublishedProps(props);
+        }
+        if (props.isEmpty()) {
+            dlog("Parsing props locally");
+            readOverlayProfile(context, props);
+        }
+        normalizeCertifiedProps(props);
+        return props;
+    }
+
+    private static boolean readSettingsProfile(Context context, Map<String, String> props) {
+        String savedProps = null;
+        try {
+            savedProps = Settings.Secure.getString(context.getContentResolver(),
+                    Settings.Secure.PIF_DATA);
+            if (TextUtils.isEmpty(savedProps)) {
                 savedProps = Settings.Secure.getString(context.getContentResolver(),
-                        Settings.Secure.PIF_DATA);
-                if (TextUtils.isEmpty(savedProps)) {
-                    savedProps = Settings.Secure.getString(context.getContentResolver(),
-                            Settings.Secure.FETCHED_PIF);
-                }
-            } catch (SecurityException e) {
-                Log.e(TAG, "Unable to read PIF settings", e);
+                        Settings.Secure.FETCHED_PIF);
             }
+        } catch (SecurityException e) {
+            Log.e(TAG, "Unable to read PIF settings", e);
+            return false;
         }
-
-        if (!TextUtils.isEmpty(savedProps)) {
-            dlog("Parsing props fetched / provided by user");
-            try {
-                JSONObject parsedProps = new JSONObject(savedProps);
-                Iterator<String> keys = parsedProps.keys();
-                while (keys.hasNext()) {
-                    String key = keys.next();
-                    props.put(key, parsedProps.getString(key));
-                }
-                return props;
-            } catch (JSONException e) {
-                Log.e(TAG, "Error parsing JSON data", e);
-                props.clear();
+        if (TextUtils.isEmpty(savedProps)) {
+            return false;
+        }
+        dlog("Parsing props fetched / provided by user");
+        try {
+            JSONObject parsedProps = new JSONObject(savedProps);
+            Iterator<String> keys = parsedProps.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                props.put(key, parsedProps.getString(key));
             }
+            return true;
+        } catch (JSONException e) {
+            Log.e(TAG, "Error parsing JSON data", e);
+            props.clear();
+            return false;
         }
+    }
 
-        dlog("Parsing props locally");
+    private static void readOverlayProfile(Context context, Map<String, String> props) {
+        if (context.getResources() == null) {
+            return;
+        }
         for (String entry : context.getResources().getStringArray(
                 R.array.config_certifiedBuildProperties)) {
-            // Each entry must be of the format FIELD:value
             final String[] fieldAndProp = entry.split(":", 2);
             if (fieldAndProp.length != 2) {
                 Log.e(TAG, "Invalid entry in certified props: " + entry);
@@ -329,19 +341,62 @@ public class PropImitationHooks {
             }
             props.put(fieldAndProp[0], fieldAndProp[1]);
         }
-        return props;
+    }
+
+    private static void readPublishedProps(Map<String, String> props) {
+        for (String field : PUBLISHED_FIELDS) {
+            String value = SystemProperties.get(publishedPropName(field), "");
+            if (!value.isEmpty()) {
+                props.put(field, value);
+            }
+        }
+    }
+
+    private static String publishedPropName(String field) {
+        return switch (field) {
+            case "FINGERPRINT" -> "persist.sys.pif.fp";
+            case "MANUFACTURER" -> "persist.sys.pif.man";
+            case "MODEL" -> "persist.sys.pif.model";
+            case "BRAND" -> "persist.sys.pif.brand";
+            case "PRODUCT" -> "persist.sys.pif.prod";
+            case "DEVICE" -> "persist.sys.pif.dev";
+            case "VERSION.RELEASE" -> "persist.sys.pif.rel";
+            case "ID" -> "persist.sys.pif.id";
+            case "VERSION.INCREMENTAL" -> "persist.sys.pif.inc";
+            case "TYPE" -> "persist.sys.pif.type";
+            case "TAGS" -> "persist.sys.pif.tags";
+            case "VERSION.SECURITY_PATCH" -> "persist.sys.pif.patch";
+            default -> "persist.sys.pif.x";
+        };
+    }
+
+    private static void normalizeCertifiedProps(Map<String, String> props) {
+        moveProp(props, "RELEASE", "VERSION.RELEASE");
+        moveProp(props, "INCREMENTAL", "VERSION.INCREMENTAL");
+        moveProp(props, "SECURITY_PATCH", "VERSION.SECURITY_PATCH");
+        String fingerprint = props.get("FINGERPRINT");
+        if (TextUtils.isEmpty(fingerprint)) {
+            return;
+        }
+        String[] parts = fingerprint.split("[/:]");
+        for (int i = 0; i < FINGERPRINT_FIELDS.length && i < parts.length; i++) {
+            props.put(FINGERPRINT_FIELDS[i], parts[i]);
+        }
+    }
+
+    private static void moveProp(Map<String, String> props, String from, String to) {
+        if (!props.containsKey(from)) {
+            return;
+        }
+        if (!props.containsKey(to)) {
+            props.put(to, props.get(from));
+        }
+        props.remove(from);
     }
 
     private static void setCertifiedProps(Map<String, String> certifiedProps) {
         certifiedProps.forEach((field, value) -> {
-            // Writing DEVICE_INITIAL_SDK_INT into GMS hid apps. Play Store still
-            // receives the value from its own allowlist.
-            if (!sIsFinsky && (field.equals("VERSION.DEVICE_INITIAL_SDK_INT")
-                    || field.equals("VERSION.SDK_INT") || field.equals("SDK_INT"))) {
-                return;
-            }
-            // The Play Store sends its device identity for app compatibility; keep it real.
-            if (sIsFinsky && !sFinskyProps.contains(field)) {
+            if (sSkippedCertifiedProps.contains(field) || TextUtils.isEmpty(value)) {
                 return;
             }
             setPropValue(field, value);
@@ -365,18 +420,6 @@ public class PropImitationHooks {
         return content.toString();
     }
 
-    private static boolean isGmsAddAccountActivityOnTop() {
-        try {
-            final ActivityTaskManager.RootTaskInfo focusedTask =
-                    ActivityTaskManager.getService().getFocusedRootTaskInfo();
-            return focusedTask != null && focusedTask.topActivity != null
-                    && focusedTask.topActivity.equals(GMS_ADD_ACCOUNT_ACTIVITY);
-        } catch (Exception e) {
-            Log.e(TAG, "Unable to get top activity!", e);
-        }
-        return false;
-    }
-
     public static boolean shouldBypassTaskPermission(Context context) {
         if (sDisableGmsProps) {
             return false;
@@ -393,31 +436,6 @@ public class PropImitationHooks {
             return false;
         }
         return gmsUid == callingUid;
-    }
-
-    private static boolean isCallerPlayIntegrity() {
-        return Arrays.stream(Thread.currentThread().getStackTrace())
-                .map(StackTraceElement::getClassName)
-                .anyMatch(name -> name.toLowerCase(Locale.US).contains("droidguard"));
-    }
-
-    public static void onEngineGetCertificateChain() {
-        if (sDisableKeyAttestationBlock) {
-            dlog("Key attestation blocking is disabled by user");
-            return;
-        }
-
-        // If a keybox is found, don't block key attestation
-        if (KeyProviderManager.isKeyboxAvailable()) {
-            dlog("Key attestation blocking is disabled because a keybox is defined to spoof");
-            return;
-        }
-
-        // Check stack for Play Integrity
-        if (isCallerPlayIntegrity()) {
-            dlog("Blocked key attestation for play integrity");
-            throw new UnsupportedOperationException();
-        }
     }
 
     public static boolean hasSystemFeature(String name, boolean has) {

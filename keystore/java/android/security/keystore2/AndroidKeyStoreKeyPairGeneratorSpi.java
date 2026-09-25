@@ -28,7 +28,6 @@ import android.hardware.security.keymint.KeyPurpose;
 import android.hardware.security.keymint.SecurityLevel;
 import android.hardware.security.keymint.Tag;
 import android.os.Build;
-import android.os.Process;
 import android.os.StrictMode;
 import android.security.Flags;
 import android.security.KeyPairGeneratorSpec;
@@ -56,15 +55,8 @@ import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.Log;
 
-import com.android.internal.org.bouncycastle.asn1.x500.X500Name;
-import com.android.internal.util.custom.KeyboxChainGenerator;
-import com.android.internal.util.custom.KeyboxChainGenerator.KeyGenParameters;
-import com.android.internal.util.custom.KeyboxImitationHooks;
-
 import libcore.util.EmptyArray;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
@@ -75,8 +67,6 @@ import java.security.KeyPairGeneratorSpi;
 import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateEncodingException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.NamedParameterSpec;
@@ -822,18 +812,8 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
         try {
             KeyStoreSecurityLevel iSecurityLevel = mKeyStore.getSecurityLevel(securityLevel);
 
-            KeyMetadata metadata = null;
-            byte[] challenge = mSpec.getAttestationChallenge();
-            if (challenge != null && !isCurve25519(mEcCurveName)
-                    && KeyboxImitationHooks.shouldGenerateSoftwareKey(
-                            mKeymasterAlgorithm, challenge)) {
-                Log.i(TAG, "Importing a keybox key for " + mEntryAlias);
-                metadata = generateKeyboxSoftwareKey(iSecurityLevel, descriptor, flags);
-            }
-            if (metadata == null) {
-                metadata = iSecurityLevel.generateKey(descriptor, mAttestKeyDescriptor,
-                        constructKeyGenerationArguments(), flags, additionalEntropy);
-            }
+            KeyMetadata metadata = iSecurityLevel.generateKey(descriptor, mAttestKeyDescriptor,
+                    constructKeyGenerationArguments(), flags, additionalEntropy);
 
             AndroidKeyStorePublicKey publicKey =
                     AndroidKeyStoreProvider.makeAndroidKeyStorePublicKeyFromKeyEntryResponse(
@@ -855,8 +835,6 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                 | DeviceIdAttestationException | InvalidAlgorithmParameterException e) {
             throw new ProviderException(
                     "Failed to construct key object from newly generated key pair.", e);
-        } catch (Exception e) {
-            throw new ProviderException("Failed to import keybox key", e);
         } finally {
             if (!success) {
                 try {
@@ -869,123 +847,6 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                 }
             }
         }
-    }
-
-    private KeyMetadata generateKeyboxSoftwareKey(KeyStoreSecurityLevel level,
-            KeyDescriptor descriptor, int flags) throws Exception {
-        KeyGenParameters params = new KeyGenParameters(new KeyParameter[0]);
-        params.keySize = mKeySizeBits;
-        params.algorithm = mKeymasterAlgorithm;
-        params.attestationChallenge = mSpec.getAttestationChallenge();
-        params.noAuthRequired = !mSpec.isUserAuthenticationRequired();
-        params.ecCurveName = mEcCurveName != null ? mEcCurveName : "secp256r1";
-        if (mSpec.getCertificateSubject() != null) {
-            params.certificateSubject = new X500Name(mSpec.getCertificateSubject().getName());
-        }
-        params.certificateSerial = mSpec.getCertificateSerialNumber();
-        params.certificateNotBefore = mSpec.getCertificateNotBefore();
-        params.certificateNotAfter = mSpec.getCertificateNotAfter();
-        if (mRSAPublicExponent != null) {
-            params.rsaPublicExponent = BigInteger.valueOf(mRSAPublicExponent);
-        }
-        if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_EC) {
-            params.ecCurve = keySizeAndNameToEcCurve(mKeySizeBits, params.ecCurveName);
-        }
-        if (mKeymasterPurposes != null) {
-            for (int purpose : mKeymasterPurposes) {
-                params.purpose.add(purpose);
-            }
-        }
-        if (mKeymasterDigests != null) {
-            for (int digest : mKeymasterDigests) {
-                params.digest.add(digest);
-            }
-        }
-        if (mSpec.isDevicePropertiesAttestationIncluded()) {
-            params.brand = attestedId(Build.BRAND_FOR_ATTESTATION, Build.BRAND);
-            params.device = attestedId(Build.DEVICE_FOR_ATTESTATION, Build.DEVICE);
-            params.product = attestedId(Build.PRODUCT_FOR_ATTESTATION, Build.PRODUCT);
-            params.manufacturer = attestedId(
-                    Build.MANUFACTURER_FOR_ATTESTATION, Build.MANUFACTURER);
-            params.model = attestedId(Build.MODEL_FOR_ATTESTATION, Build.MODEL);
-        }
-
-        KeyPairGenerator generator = KeyPairGenerator.getInstance(
-                mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_EC ? "EC" : "RSA");
-        if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_EC) {
-            generator.initialize(new ECGenParameterSpec(params.ecCurveName));
-        } else {
-            BigInteger exponent = params.rsaPublicExponent != null
-                    ? params.rsaPublicExponent : RSAKeyGenParameterSpec.F4;
-            generator.initialize(new RSAKeyGenParameterSpec(mKeySizeBits, exponent));
-        }
-        KeyPair keyPair = generator.generateKeyPair();
-        List<Certificate> chain = KeyboxChainGenerator.generateSoftwareChain(
-                keyPair, params, Process.myUid());
-
-        KeyMetadata metadata = level.importKey(descriptor, null, constructKeyImportArguments(),
-                flags, keyPair.getPrivate().getEncoded());
-        byte[] leaf = chain.get(0).getEncoded();
-        byte[] caChain = encodeCertificateChain(chain.subList(1, chain.size()));
-        mKeyStore.updateSubcomponents(descriptor, leaf, caChain);
-        metadata.certificate = leaf;
-        metadata.certificateChain = caChain;
-        return metadata;
-    }
-
-    private byte[] attestedId(String attested, String fallback) {
-        String value = isPropertyEmptyOrUnknown(attested) ? fallback : attested;
-        return value.getBytes(StandardCharsets.UTF_8);
-    }
-
-    private byte[] encodeCertificateChain(List<Certificate> chain) throws CertificateEncodingException {
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        for (Certificate certificate : chain) {
-            try {
-                output.write(certificate.getEncoded());
-            } catch (IOException e) {
-                throw new CertificateEncodingException(e);
-            }
-        }
-        return output.toByteArray();
-    }
-
-    private Collection<KeyParameter> constructKeyImportArguments()
-            throws DeviceIdAttestationException, IllegalArgumentException,
-            InvalidAlgorithmParameterException {
-        List<KeyParameter> params = new ArrayList<>();
-        for (KeyParameter parameter : constructKeyGenerationArguments()) {
-            switch (parameter.tag) {
-                case Tag.ATTESTATION_CHALLENGE:
-                case Tag.ATTESTATION_APPLICATION_ID:
-                case Tag.ATTESTATION_ID_BRAND:
-                case Tag.ATTESTATION_ID_DEVICE:
-                case Tag.ATTESTATION_ID_PRODUCT:
-                case Tag.ATTESTATION_ID_MANUFACTURER:
-                case Tag.ATTESTATION_ID_MODEL:
-                case Tag.CERTIFICATE_NOT_BEFORE:
-                case Tag.CERTIFICATE_NOT_AFTER:
-                case Tag.CERTIFICATE_SERIAL:
-                case Tag.CERTIFICATE_SUBJECT:
-                case Tag.INCLUDE_UNIQUE_ID:
-                case Tag.DEVICE_UNIQUE_ATTESTATION:
-                    continue;
-                default:
-                    params.add(parameter);
-                    break;
-            }
-        }
-        boolean hasNoAuth = false;
-        for (KeyParameter parameter : params) {
-            if (parameter.tag == KeymasterDefs.KM_TAG_NO_AUTH_REQUIRED) {
-                hasNoAuth = true;
-                break;
-            }
-        }
-        if (!hasNoAuth && !mSpec.isUserAuthenticationRequired()) {
-            params.add(KeyStore2ParameterUtils.makeBool(KeymasterDefs.KM_TAG_NO_AUTH_REQUIRED));
-        }
-        return params;
     }
 
     @RequiresPermission(value = android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE,
