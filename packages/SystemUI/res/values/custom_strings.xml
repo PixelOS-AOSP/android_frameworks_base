@@ -121,4 +121,24 @@
     <string name="flashlight_strength_title">Flashlight Strength</string>
     <string name="flashlight_strength_turn_off">Turn off</string>
     <string name="flashlight_strength_turn_on">Turn on</string>
+
+    <!-- Tiered low battery notifications -->
+    <!-- Title of the low battery notification. [CHAR LIMIT=NONE] -->
+    <string name="low_battery_notification_title"><xliff:g id="percentage" example="20%">%s</xliff:g> battery left</string>
+    <!-- Text of the low battery notification. [CHAR LIMIT=NONE] -->
+    <string name="low_battery_notification_text">Turn on Battery Saver to extend battery life</string>
+    <!-- Text of the low battery notification when Extreme Battery Saver is in aggressive mode. [CHAR LIMIT=NONE] -->
+    <string name="low_battery_notification_text_ebs">Turn on Extreme Battery Saver to extend battery life</string>
+    <!-- Title of the severe low battery notification. [CHAR LIMIT=NONE] -->
+    <string name="severe_battery_notification_title"><xliff:g id="percentage" example="10%">%s</xliff:g> battery left</string>
+    <!-- Text of the severe low battery notification, suggesting Extreme Battery Saver. [CHAR LIMIT=NONE] -->
+    <string name="severe_battery_notification_text">Turn on Extreme Battery Saver. This will pause all non-essential apps</string>
+    <!-- Text of the severe low battery notification when Battery Saver is already on or scheduled. [CHAR LIMIT=NONE] -->
+    <string name="severe_battery_notification_switch_text">Switch to Extreme Battery Saver? \n\nThis will pause all non-essential apps and their notifications</string>
+    <!-- Severe low battery notification action that switches to Extreme Battery Saver. [CHAR LIMIT=30] -->
+    <string name="severe_low_battery_dialog_switch_action_text">Switch</string>
+    <!-- Title of the extreme low battery notification, shown right before the device shuts down. [CHAR LIMIT=NONE] -->
+    <string name="extreme_low_battery_notification_title">Very low battery</string>
+    <!-- Text of the extreme low battery notification. [CHAR LIMIT=NONE] -->
+    <string name="extreme_low_battery_notification_text">Your phone will shut down if it\u2019s not charged soon</string>
 </resources>
