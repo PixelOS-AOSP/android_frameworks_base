@@ -141,4 +141,22 @@
     <string name="extreme_low_battery_notification_title">Very low battery</string>
     <!-- Text of the extreme low battery notification. [CHAR LIMIT=NONE] -->
     <string name="extreme_low_battery_notification_text">Your phone will shut down if it\u2019s not charged soon</string>
+
+    <!-- First-time Battery Saver confirmation dialog -->
+    <!-- Title of the dialog shown when Battery Saver is turned on for the first time. [CHAR LIMIT=NONE] -->
+    <string name="saver_confirmation_dialog_title">Welcome to Battery Saver</string>
+    <!-- Subtitle of the first-time Battery Saver dialog, above the mode selection. [CHAR LIMIT=NONE] -->
+    <string name="saver_confirmation_dialog_subtitle">Select the mode to use</string>
+    <!-- Title of the standard Battery Saver option. [CHAR LIMIT=NONE] -->
+    <string name="saver_confirmation_dialog_title_standard_mode">Standard Battery Saver</string>
+    <!-- Summary of the standard Battery Saver option. [CHAR LIMIT=NONE] -->
+    <string name="saver_confirmation_dialog_summary_standard_mode">Limits visual effects and background activity. Turns on dark theme, if not already on.</string>
+    <!-- Title of the Extreme Battery Saver option. [CHAR LIMIT=NONE] -->
+    <string name="saver_confirmation_dialog_title_extreme_mode">Extreme Battery Saver</string>
+    <!-- Summary of the Extreme Battery Saver option. [CHAR LIMIT=NONE] -->
+    <string name="saver_confirmation_dialog_summary_extreme_mode">Includes all changes listed above. Also pauses non-essential apps and their notifications.</string>
+    <!-- Button that opens Extreme Battery Saver setup. [CHAR LIMIT=30] -->
+    <string name="saver_confirmation_dialog_setup_text">Set up</string>
+    <!-- Button that closes the first-time Battery Saver dialog. [CHAR LIMIT=30] -->
+    <string name="saver_confirmation_dialog_dismiss_text">Cancel</string>
 </resources>

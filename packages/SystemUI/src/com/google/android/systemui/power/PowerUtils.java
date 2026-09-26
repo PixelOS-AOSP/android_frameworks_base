@@ -71,4 +71,15 @@ public final class PowerUtils {
             Log.e(TAG, "enableFlipendo() failed", e);
         }
     }
+
+    public static void applyExtremeSaverMode(ContentResolver resolver) {
+        final Bundle extras = new Bundle(1);
+        extras.putInt("update_flipendo_mode", 1);
+        try {
+            resolver.call(FLIPENDO_AUTHORITY, "update_flipendo_mode_method", null /* arg */,
+                    extras);
+        } catch (RuntimeException e) {
+            Log.e(TAG, "applyExtremeSaverMode() failed", e);
+        }
+    }
 }
