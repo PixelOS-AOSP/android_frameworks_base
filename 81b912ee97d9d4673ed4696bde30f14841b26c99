@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "923740fe_ea04aed8",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000000
+      },
+      "writtenOn": "2026-10-09T09:53:06Z",
+      "side": 1,
+      "message": "causes SystemUI to restart if password/pin is used after first unlock",
+      "revId": "81b912ee97d9d4673ed4696bde30f14841b26c99",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
