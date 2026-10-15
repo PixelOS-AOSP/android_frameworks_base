@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "1e04e217_cbacd7f2",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000018
+      },
+      "writtenOn": "2026-10-15T16:46:00Z",
+      "side": 1,
+      "message": "Assuming CR and V from @mail@inferno0230.in",
+      "revId": "2aa309446a5a3234849d3ca0dd53cb9e1478481a",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
