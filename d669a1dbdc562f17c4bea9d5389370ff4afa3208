@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d55e0593_0bfad833",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 10
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-10-23T08:06:51Z",
+      "side": 1,
+      "message": "What\u0027s stopping this patch?",
+      "revId": "d669a1dbdc562f17c4bea9d5389370ff4afa3208",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
