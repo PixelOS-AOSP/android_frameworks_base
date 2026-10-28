@@ -36,6 +36,7 @@ import android.util.Log;
 import com.android.internal.R;
 import com.android.internal.util.custom.KeyProviderManager;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -239,21 +240,37 @@ public class PropImitationHooks {
 
         if (savedProps == null || TextUtils.isEmpty(savedProps)) {
             dlog("Parsing props locally - fetched pif / user provided pif unavailable");
-            sCertifiedProps = Arrays.asList(context.getResources().getStringArray(R.array.config_certifiedBuildProperties));
+            sCertifiedProps = new ArrayList<>(Arrays.asList(
+                    context.getResources().getStringArray(R.array.config_certifiedBuildProperties)));
         } else {
             dlog("Parsing props fetched / provided by user");
             try {
                 JSONObject parsedProps = new JSONObject(savedProps);
+                List<String> props = new ArrayList<>();
                 Iterator<String> keys = parsedProps.keys();
                 while (keys.hasNext()) {
                     String key = keys.next();
-                    String value = parsedProps.getString(key);
-                    sCertifiedProps.add(key + ":" + value);
+                    Object value = parsedProps.get(key);
+                    // Nested objects and arrays carry no Build field, skip
+                    // them instead of passing their JSON text on as a value.
+                    if (value instanceof JSONObject || value instanceof JSONArray
+                            || value == JSONObject.NULL) {
+                        dlog("Skipping non-scalar value for " + key);
+                        continue;
+                    }
+                    String field = toBuildField(key);
+                    if (field == null) {
+                        dlog("Skipping " + key + ", not a Build field");
+                        continue;
+                    }
+                    props.add(field + ":" + value);
                 }
+                sCertifiedProps = props;
             } catch (JSONException e) {
                 Log.e(TAG, "Error parsing JSON data", e);
                 dlog("Parsing props locally as fallback");
-                sCertifiedProps = Arrays.asList(context.getResources().getStringArray(R.array.config_certifiedBuildProperties));
+                sCertifiedProps = new ArrayList<>(Arrays.asList(
+                        context.getResources().getStringArray(R.array.config_certifiedBuildProperties)));
             }
         }
 
@@ -286,6 +303,33 @@ public class PropImitationHooks {
             ActivityTaskManager.getService().registerTaskStackListener(taskStackListener);
         } catch (Exception e) {
             Log.e(TAG, "Failed to register task stack listener!", e);
+        }
+    }
+
+    /**
+     * Maps a key from a fetched or user provided PIF config to a Build or
+     * Build.VERSION field name, or returns null for keys that aren't fields:
+     * PlayIntegrityFix options (spoofBuild, verboseLogs, ...) and system
+     * property keys (*.build.id, ro.*).
+     */
+    private static String toBuildField(String key) {
+        if (key.startsWith("VERSION.")) {
+            return key;
+        }
+        if (key.contains(".") || key.startsWith("*") || !key.equals(key.toUpperCase(Locale.US))) {
+            return null;
+        }
+        switch (key) {
+            case "RELEASE":
+            case "INCREMENTAL":
+            case "SECURITY_PATCH":
+            case "DEVICE_INITIAL_SDK_INT":
+                return "VERSION." + key;
+            case "DEBUG":
+            case "VERBOSE_LOGS":
+                return null;
+            default:
+                return key;
         }
     }
 
