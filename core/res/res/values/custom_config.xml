@@ -132,6 +132,11 @@
     <!-- Build fingerprint from stock ROM -->
     <string name="config_stockFingerprint" translatable="false"></string>
 
+    <!-- Whether Play Store (Finsky) gets the certified props too. Play Store picks
+         the apps and APK variants it serves from them, so devices that need apps
+         built for themselves (e.g. Google Camera) can set this to false. -->
+    <bool name="config_spoofVendingBuild">true</bool>
+
     <!-- Device model (Build.MODEL) to spoof for netflix, if not empty -->
     <string name="config_netflixSpoofModel" translatable="false"></string>
 

@@ -166,7 +166,8 @@ public class PropImitationHooks {
 
         sProcessName = processName;
         sIsGms = packageName.equals(PACKAGE_GMS) && processName.equals(PROCESS_GMS_UNSTABLE);
-        sIsFinsky = packageName.equals(PACKAGE_FINSKY);
+        sIsFinsky = packageName.equals(PACKAGE_FINSKY)
+                && res.getBoolean(R.bool.config_spoofVendingBuild);
         sIsPhotos = packageName.equals(PACKAGE_GPHOTOS);
 
         /* Set Certified Properties for GMSCore
