@@ -244,6 +244,10 @@ public class PropImitationHooks {
             dlog("Parsing props fetched / provided by user");
             try {
                 JSONObject parsedProps = new JSONObject(savedProps);
+                if (sIsFinsky && !isOptionEnabled(parsedProps, "spoofVendingBuild")) {
+                    dlog("Not spoofing build for Finsky, spoofVendingBuild is off");
+                    return;
+                }
                 Iterator<String> keys = parsedProps.keys();
                 while (keys.hasNext()) {
                     String key = keys.next();
@@ -287,6 +291,15 @@ public class PropImitationHooks {
         } catch (Exception e) {
             Log.e(TAG, "Failed to register task stack listener!", e);
         }
+    }
+
+    /**
+     * Returns whether a PlayIntegrityFix option is on. A missing option
+     * counts as on, so configs without it keep the previous behavior.
+     */
+    private static boolean isOptionEnabled(JSONObject props, String option) {
+        final String value = props.optString(option, "1").trim();
+        return !value.equals("0") && !value.equalsIgnoreCase("false");
     }
 
     private static void setCertifiedProps() {
