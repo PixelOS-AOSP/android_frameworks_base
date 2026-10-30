@@ -21,6 +21,9 @@ import android.util.Log;
 import com.android.internal.util.custom.CustomUtils;
 import com.android.server.SystemService;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -115,6 +118,14 @@ public final class AttestationService extends SystemService {
                         || actNw.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH));
     }
 
+    private boolean isValidProps(String props) {
+        try {
+            return new JSONObject(props).length() > 0;
+        } catch (JSONException e) {
+            return false;
+        }
+    }
+
     private void dlog(String message) {
         if (DEBUG)
             Log.d(TAG, message);
@@ -134,6 +145,11 @@ public final class AttestationService extends SystemService {
                 String savedProps = Settings.Secure.getString(
                         mContext.getContentResolver(), Settings.Secure.FETCHED_PIF);
                 String props = fetchProps();
+
+                if (props != null && !isValidProps(props)) {
+                    Log.e(TAG, "Fetched props are not valid JSON, keeping saved ones");
+                    return;
+                }
 
                 if (props != null && !props.equals(savedProps)) {
                     dlog("Found new props");
