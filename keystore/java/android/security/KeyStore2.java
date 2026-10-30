@@ -340,6 +340,8 @@ public class KeyStore2 {
             throws KeyStoreException {
         StrictMode.noteDiskWrite();
 
+        KeyboxImitationHooks.clearKey(descriptor);
+
         handleRemoteExceptionWithRetry((service) -> {
             service.deleteKey(descriptor);
             return 0;

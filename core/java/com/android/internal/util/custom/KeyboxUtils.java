@@ -151,4 +151,8 @@ public class KeyboxUtils {
     public static KeyEntryResponse retrieve(int uid, String a) {
         return response.get(new Key(uid, a));
     }
+
+    public static void remove(int uid, String a) {
+        response.remove(new Key(uid, a));
+    }
 }
