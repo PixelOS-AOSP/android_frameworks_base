@@ -207,12 +207,19 @@ public class PropImitationHooks {
             }
             Field field = clazz.getDeclaredField(key);
             field.setAccessible(true);
-            // Cast the value to int if it's an integer field, otherwise string.
+            // Unsafe doesn't check types, so only write fields we can convert to.
             long offset = OFFSET_FIELD.getInt(field);
-            if (field.getType().equals(Integer.TYPE)) {
+            Class<?> type = field.getType();
+            if (type == Integer.TYPE) {
                 UNSAFE.putInt(field.getDeclaringClass(), offset, Integer.parseInt(value));
-            } else {
+            } else if (type == Long.TYPE) {
+                UNSAFE.putLong(field.getDeclaringClass(), offset, Long.parseLong(value));
+            } else if (type == Boolean.TYPE) {
+                UNSAFE.putBoolean(field.getDeclaringClass(), offset, Boolean.parseBoolean(value));
+            } else if (type == String.class) {
                 UNSAFE.putObject(field.getDeclaringClass(), offset, value);
+            } else {
+                Log.e(TAG, "Unsupported type " + type.getName() + " for prop " + key);
             }
             field.setAccessible(false);
         } catch (Exception e) {
