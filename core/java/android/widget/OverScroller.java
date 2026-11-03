@@ -438,6 +438,9 @@ public class OverScroller {
         mMode = FLING_MODE;
         mScrollerX.fling(startX, velocityX, minX, maxX, overX);
         mScrollerY.fling(startY, velocityY, minY, maxY, overY);
+
+        FlingBoost.onFlingStart(Math.max(mScrollerX.mDuration, mScrollerY.mDuration),
+                Math.abs(velocityY) >= Math.abs(velocityX));
     }
 
     /**
@@ -502,6 +505,9 @@ public class OverScroller {
      * @see #forceFinished(boolean)
      */
     public void abortAnimation() {
+        if (mMode == FLING_MODE && !isFinished()) {
+            FlingBoost.onFlingEnd();
+        }
         mScrollerX.finish();
         mScrollerY.finish();
     }
