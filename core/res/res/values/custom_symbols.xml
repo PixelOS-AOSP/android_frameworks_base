@@ -127,4 +127,7 @@
 
    <!-- Defines the actions shown in advanced reboot submenu -->
    <java-symbol type="array" name="config_restartActionsList" />
+
+   <!-- Whether OverScroller reports flings to the "flingboost" service -->
+   <java-symbol type="bool" name="config_flingBoost" />
 </resources>
