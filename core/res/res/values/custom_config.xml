@@ -177,4 +177,8 @@
 
     <!-- Whether to force enable multi resolution configuration for camera -->
     <bool name="config_forceMultiResolution">false</bool>
+
+    <!-- Whether OverScroller reports flings to the device's "flingboost" service,
+         so it can hold a CPU boost for the length of a fling -->
+    <bool name="config_flingBoost">false</bool>
 </resources>

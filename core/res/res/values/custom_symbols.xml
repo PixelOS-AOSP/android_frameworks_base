@@ -139,4 +139,7 @@
     <java-symbol type="array" name="config_fgsTypeValidationBypassPackages" id="0x0107f002" />
     <java-symbol type="array" name="config_alarmManagerValidationBypassPackages" id="0x0107f003" />
     <java-symbol type="array" name="config_broadcastReceiverValidationBypassPackages" id="0x0107f004" />
+
+    <!-- Whether OverScroller reports flings to the "flingboost" service -->
+    <java-symbol type="bool" name="config_flingBoost" id="0x0111f002" />
 </resources>
