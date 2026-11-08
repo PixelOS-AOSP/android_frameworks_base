@@ -185,6 +185,7 @@ import com.android.server.compat.PlatformCompat;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageStateInternal;
 import com.android.server.privatecompute.PccSandboxManagerInternal;
+import com.android.server.spoof.SpoofManager;
 import com.android.server.wm.ActivityServiceConnectionsHolder;
 import com.android.server.wm.WindowManagerService;
 import com.android.server.wm.WindowProcessController;
@@ -2612,6 +2613,9 @@ public final class ProcessList extends ProcessListInternal
                         break;
                     }
                 }
+            }
+            if (SpoofManager.shouldOverrideSysprops(app.processName)) {
+                bindOverrideSysprops = true;
             }
 
             AppStateTracker ast = mService.mServices.mAppStateTracker;

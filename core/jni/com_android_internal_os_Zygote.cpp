@@ -1977,7 +1977,9 @@ static void SpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray gids, 
 
     if (mount_sysprop_overrides) {
         BindMountSyspropOverride(fail_fn, env);
-        MountInitOverride(fail_fn, env);
+        if (!nice_name.has_value() || nice_name.value() != "com.google.android.gms.unstable") {
+            MountInitOverride(fail_fn, env);
+        }
     }
 
     // If this zygote isn't root, it won't be able to create a process group,

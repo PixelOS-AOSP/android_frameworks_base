@@ -216,6 +216,10 @@ public class ApplicationPackageManager extends PackageManager {
 
     private final boolean mUseSystemFeaturesCache;
 
+    // Spoof setting caches — refreshed by ContentObserver, avoids per-call Settings reads
+    private static volatile boolean sPhotosSpoofEnabled = true;
+    private static boolean sSpoofObserverRegistered = false;
+
     UserManager getUserManager() {
         if (mUserManager == null) {
             mUserManager = UserManager.get(mContext);
@@ -839,6 +843,67 @@ public class ApplicationPackageManager extends PackageManager {
                 }
             };
 
+    private static final ArraySet<String> sTensorFeatureApps = new ArraySet<>(Arrays.asList(
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.apps.pixel.agent",
+            "com.google.android.apps.pixel.creativeassistant",
+            "com.google.android.dialer"));
+
+    private static final ArraySet<String> featuresPixel = new ArraySet<>(Arrays.asList(
+            "com.google.android.apps.photos.PIXEL_2019_PRELOAD",
+            "com.google.android.apps.photos.PIXEL_2019_MIDYEAR_PRELOAD",
+            "com.google.android.apps.photos.PIXEL_2018_PRELOAD",
+            "com.google.android.apps.photos.PIXEL_2017_PRELOAD",
+            "com.google.android.feature.PIXEL_2021_MIDYEAR_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2020_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2020_MIDYEAR_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2019_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2019_MIDYEAR_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2018_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2017_EXPERIENCE",
+            "com.google.android.feature.PIXEL_EXPERIENCE",
+            "com.google.android.feature.GOOGLE_BUILD",
+            "com.google.android.feature.GOOGLE_EXPERIENCE"));
+
+    private static final ArraySet<String> featuresPixelOthers = new ArraySet<>(Arrays.asList(
+            "com.google.android.feature.ASI",
+            "com.google.android.feature.ANDROID_ONE_EXPERIENCE",
+            "com.google.android.feature.GOOGLE_FI_BUNDLED",
+            "com.google.android.feature.LILY_EXPERIENCE",
+            "com.google.android.feature.TURBO_PRELOAD",
+            "com.google.android.feature.WELLBEING",
+            "com.google.lens.feature.IMAGE_INTEGRATION",
+            "com.google.lens.feature.CAMERA_INTEGRATION",
+            "com.google.photos.trust_debug_certs",
+            "com.google.android.feature.AER_OPTIMIZED",
+            "com.google.android.feature.NEXT_GENERATION_ASSISTANT",
+            "android.software.game_service",
+            "com.google.android.feature.EXCHANGE_6_2",
+            "com.google.android.apps.dialer.call_recording_audio",
+            "com.google.android.apps.dialer.SUPPORTED",
+            "com.google.android.feature.CONTEXTUAL_SEARCH",
+            "com.google.android.feature.D2D_CABLE_MIGRATION_FEATURE"));
+
+    private static final ArraySet<String> featuresTensor = new ArraySet<>(Arrays.asList(
+            "com.google.android.feature.PIXEL_2026_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2026_MIDYEAR_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2025_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2025_MIDYEAR_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2024_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2024_MIDYEAR_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2023_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2023_MIDYEAR_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2022_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2022_MIDYEAR_EXPERIENCE",
+            "com.google.android.feature.PIXEL_2021_EXPERIENCE"));
+
+    private static final ArraySet<String> featuresNexus = new ArraySet<>(Arrays.asList(
+            "com.google.android.apps.photos.NEXUS_PRELOAD",
+            "com.google.android.apps.photos.nexus_preload",
+            "com.google.android.feature.PIXEL_EXPERIENCE",
+            "com.google.android.feature.GOOGLE_BUILD",
+            "com.google.android.feature.GOOGLE_EXPERIENCE"));
+
     @Override
     @RavenwoodRedirect
     public boolean hasSystemFeature(String name, int version) {
@@ -858,6 +923,21 @@ public class ApplicationPackageManager extends PackageManager {
             if (maybeHasSystemFeature != null) {
                 return maybeHasSystemFeature;
             }
+        }
+
+        final String packageName = ActivityThread.currentPackageName();
+        final boolean isPhotos = "com.google.android.apps.photos".equals(packageName);
+        if (isPhotos && !Process.isIsolated() && sPhotosSpoofEnabled) {
+            if (featuresPixel.contains(name) || featuresTensor.contains(name)) {
+                return false;
+            }
+        } else if (featuresTensor.contains(name)
+                && (isPhotos || sTensorFeatureApps.contains(packageName))) {
+            return true;
+        }
+        if (featuresNexus.contains(name) || featuresPixel.contains(name)
+                || featuresPixelOthers.contains(name)) {
+            return true;
         }
         return mHasSystemFeatureCache.query(new HasSystemFeatureQuery(name, version));
     }
@@ -2300,6 +2380,37 @@ public class ApplicationPackageManager extends PackageManager {
         mContext = context;
         mPM = pm;
         mUseSystemFeaturesCache = isSystemFeaturesCacheAvailable();
+        if (!Process.isIsolated()) {
+            registerSpoofSettingsObserver();
+        }
+    }
+
+    private void registerSpoofSettingsObserver() {
+        synchronized (ApplicationPackageManager.class) {
+            if (sSpoofObserverRegistered) return;
+            sSpoofObserverRegistered = true;
+        }
+        final ContentResolver cr = mContext.getContentResolver();
+        final Runnable refresh = () -> {
+            try {
+                sPhotosSpoofEnabled = Settings.Secure.getInt(
+                        cr, Settings.Secure.PI_PHOTOS_SPOOF, 1) == 1;
+            } catch (Throwable t) {
+                // Settings provider not ready yet; cache stays at safe defaults
+            }
+        };
+        try {
+            final android.database.ContentObserver observer =
+                    new android.database.ContentObserver(null) {
+                @Override
+                public void onChange(boolean selfChange) { refresh.run(); }
+            };
+            cr.registerContentObserver(
+                    Settings.Secure.getUriFor(Settings.Secure.PI_PHOTOS_SPOOF), false, observer);
+        } catch (Throwable t) {
+            // Observer registration failed; feature will remain disabled
+        }
+        refresh.run();
     }
 
     @RavenwoodIgnore

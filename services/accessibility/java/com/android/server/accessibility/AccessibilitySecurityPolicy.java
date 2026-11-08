@@ -685,6 +685,10 @@ public class AccessibilitySecurityPolicy {
      * @param permission The permission to check
      */
     public void enforceCallingOrSelfPermission(@NonNull String permission) {
+        if (com.android.internal.util.custom.PixelPropsUtils.shouldBypassTaskPermission(
+                Binder.getCallingUid())) {
+            return;
+        }
         if (mContext.checkCallingOrSelfPermission(permission)
                 != PackageManager.PERMISSION_GRANTED) {
             throw new SecurityException("Caller does not hold permission "

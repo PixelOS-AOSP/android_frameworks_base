@@ -21,13 +21,16 @@ import static android.security.keystore2.AndroidKeyStoreCipherSpiBase.DEFAULT_MG
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
+import android.app.ActivityThread;
 import android.content.Context;
 import android.hardware.security.keymint.EcCurve;
 import android.hardware.security.keymint.KeyParameter;
 import android.hardware.security.keymint.KeyPurpose;
+import android.hardware.security.keymint.KeyParameterValue;
 import android.hardware.security.keymint.SecurityLevel;
 import android.hardware.security.keymint.Tag;
 import android.os.Build;
+import android.os.Process;
 import android.os.StrictMode;
 import android.security.Flags;
 import android.security.KeyPairGeneratorSpec;
@@ -43,6 +46,8 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.SecureKeyImportUnavailableException;
 import android.security.keystore.StrongBoxUnavailableException;
+import android.security.trickystore.CertificateGenerator;
+import android.security.trickystore.TrickyStoreService;
 import android.system.keystore2.Authorization;
 import android.system.keystore2.Domain;
 import android.system.keystore2.IKeystoreSecurityLevel;
@@ -57,6 +62,8 @@ import android.util.Log;
 
 import libcore.util.EmptyArray;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
@@ -67,6 +74,8 @@ import java.security.KeyPairGeneratorSpi;
 import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.NamedParameterSpec;
@@ -105,6 +114,7 @@ import java.util.function.Predicate;
  */
 public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
     private static final String TAG = "AndroidKeyStoreKeyPairGeneratorSpi";
+    private static final int MAX_ATTESTATION_CHALLENGE_SIZE_BYTES = 128;
 
     public static class RSA extends AndroidKeyStoreKeyPairGeneratorSpi {
         public RSA() {
@@ -812,8 +822,54 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
         try {
             KeyStoreSecurityLevel iSecurityLevel = mKeyStore.getSecurityLevel(securityLevel);
 
-            KeyMetadata metadata = iSecurityLevel.generateKey(descriptor, mAttestKeyDescriptor,
-                    constructKeyGenerationArguments(), flags, additionalEntropy);
+
+            KeyMetadata metadata;
+            boolean needGenerate = false;
+            boolean needHack = false;
+            String[] packages = null;
+            final int requesterUid = Process.myUid();
+            // Only attested, standard RSA/EC keys are eligible. Ordinary keys,
+            // StrongBox keys, Curve25519 keys (XDH/Ed25519 normalize to EC but a
+            // plain EC software keypair generator cannot express them),
+            // attest-key-rooted chains and internal hardware probes must follow
+            // the stock Keystore path.
+            final boolean eligible = mSpec.getAttestationChallenge() != null
+                    && !mSpec.isStrongBoxBacked()
+                    && (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_EC
+                        || mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_RSA)
+                    && mAttestKeyDescriptor == null
+                    && !isCurve25519(mEcCurveName)
+                    && !"TrickyStoreTeeCheck".equals(mEntryAlias)
+                    && !"trickystore_attestation_key".equals(mEntryAlias);
+            if (eligible) {
+                try {
+                    if (ActivityThread.getPackageManager() != null) {
+                        packages = ActivityThread.getPackageManager()
+                                .getPackagesForUid(requesterUid);
+                    }
+                    if (packages != null && packages.length > 0) {
+                        TrickyStoreService service = TrickyStoreService.getInstance();
+                        if (service.hasKeyboxes()) {
+                            needGenerate = service.needGenerate(requesterUid, packages);
+                            if (!needGenerate) {
+                                needHack = service.needHack(requesterUid, packages);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to resolve TrickyStore key policy", e);
+                }
+            }
+
+            if (needGenerate || needHack) {
+                metadata = buildSoftwareAttestedKey(
+                        descriptor, iSecurityLevel, securityLevel, flags,
+                        requesterUid, packages);
+            } else {
+                metadata = iSecurityLevel.generateKey(descriptor,
+                        mAttestKeyDescriptor,
+                        constructKeyGenerationArguments(), flags, additionalEntropy);
+            }
 
             AndroidKeyStorePublicKey publicKey =
                     AndroidKeyStoreProvider.makeAndroidKeyStorePublicKeyFromKeyEntryResponse(
@@ -835,6 +891,8 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                 | DeviceIdAttestationException | InvalidAlgorithmParameterException e) {
             throw new ProviderException(
                     "Failed to construct key object from newly generated key pair.", e);
+        } catch (Exception e) {
+            throw new ProviderException("Failed to generate key pair", e);
         } finally {
             if (!success) {
                 try {
@@ -849,13 +907,154 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
         }
     }
 
+    private KeyMetadata buildSoftwareAttestedKey(
+            KeyDescriptor descriptor,
+            KeyStoreSecurityLevel iSecurityLevel,
+            int securityLevel,
+            int flags,
+            int requesterUid,
+            String[] packages) throws Exception {
+        Log.i(TAG, "Generating software key for " + mEntryAlias);
+
+        CertificateGenerator.KeyGenParameters params = new CertificateGenerator.KeyGenParameters();
+        params.keySize = mKeySizeBits;
+        params.algorithm = mKeymasterAlgorithm;
+        params.certificateSubject = mSpec.getCertificateSubject();
+        params.certificateSerial = mSpec.getCertificateSerialNumber();
+        params.certificateNotBefore = mSpec.getCertificateNotBefore();
+        params.certificateNotAfter = mSpec.getCertificateNotAfter();
+        params.rsaPublicExponent = mRSAPublicExponent == null ? null : BigInteger.valueOf(mRSAPublicExponent);
+        params.ecCurveName = mEcCurveName;
+        params.attestationChallenge = mSpec.getAttestationChallenge();
+
+        if (mKeymasterPurposes != null) {
+            for (int p : mKeymasterPurposes) params.purpose.add(p);
+        }
+        if (mKeymasterDigests != null) {
+            for (int d : mKeymasterDigests) params.digest.add(d);
+        }
+
+        if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_EC) {
+            try {
+                params.ecCurve = keySizeAndNameToEcCurve(mKeySizeBits, mEcCurveName);
+            } catch (InvalidAlgorithmParameterException e) {
+                throw new ProviderException("Unsupported EC curve", e);
+            }
+        }
+        if (mKeymasterEncryptionPaddings != null) {
+            for (int p : mKeymasterEncryptionPaddings) params.padding.add(p);
+        }
+        if (mKeymasterSignaturePaddings != null) {
+            for (int p : mKeymasterSignaturePaddings) {
+                if (!params.padding.contains(p)) params.padding.add(p);
+            }
+        }
+        params.packages = packages;
+
+        // KeyMint 3+ reports the MGF1 digests, not the primary digests, under
+        // RSA_OAEP_MGF_DIGEST. mKeymasterMgf1Digests already holds the SHA-1
+        // default when the spec named none, same as the real generation path.
+        if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_RSA
+                && mKeymasterEncryptionPaddings != null
+                && mKeymasterMgf1Digests != null) {
+            for (int padding : mKeymasterEncryptionPaddings) {
+                if (padding == KeymasterDefs.KM_PAD_RSA_OAEP) {
+                    for (int d : mKeymasterMgf1Digests) {
+                        params.rsaOaepMgfDigest.add(d);
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (mSpec.isDevicePropertiesAttestationIncluded()) {
+            try {
+                final String brand = isPropertyEmptyOrUnknown(Build.BRAND_FOR_ATTESTATION)
+                        ? Build.BRAND : Build.BRAND_FOR_ATTESTATION;
+                params.brand = brand.getBytes(StandardCharsets.UTF_8);
+
+                final String device = isPropertyEmptyOrUnknown(Build.DEVICE_FOR_ATTESTATION)
+                        ? Build.DEVICE : Build.DEVICE_FOR_ATTESTATION;
+                params.device = device.getBytes(StandardCharsets.UTF_8);
+
+                final String product = isPropertyEmptyOrUnknown(Build.PRODUCT_FOR_ATTESTATION)
+                        ? Build.PRODUCT : Build.PRODUCT_FOR_ATTESTATION;
+                params.product = product.getBytes(StandardCharsets.UTF_8);
+
+                final String manufacturer = isPropertyEmptyOrUnknown(Build.MANUFACTURER_FOR_ATTESTATION)
+                        ? Build.MANUFACTURER : Build.MANUFACTURER_FOR_ATTESTATION;
+                params.manufacturer = manufacturer.getBytes(StandardCharsets.UTF_8);
+
+                final String model = isPropertyEmptyOrUnknown(Build.MODEL_FOR_ATTESTATION)
+                        ? Build.MODEL : Build.MODEL_FOR_ATTESTATION;
+                params.model = model.getBytes(StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to set device properties for attestation", e);
+            }
+        }
+
+        KeyPair kp = CertificateGenerator.generateKeyPair(params);
+        if (kp == null) throw new ProviderException("Failed to generate software key");
+
+        List<Certificate> chain = CertificateGenerator.generateCertificateChain(
+                kp, params, securityLevel, requesterUid);
+        if (chain == null || chain.isEmpty()) {
+            throw new ProviderException("Failed to generate software certificate chain");
+        }
+        byte[] userCert = chain.get(0).getEncoded();
+        byte[] chainBytes = chain.size() > 1
+                ? encodeCertificateChain(chain.subList(1, chain.size())) : null;
+        byte[] keyBytes = kp.getPrivate().getEncoded();
+        if (keyBytes == null) {
+            throw new ProviderException("Generated private key cannot be imported");
+        }
+        KeyMetadata metadata;
+        try {
+            metadata = iSecurityLevel.importKey(descriptor, null,
+                    constructKeyImportArguments(), flags, keyBytes);
+        } finally {
+            Arrays.fill(keyBytes, (byte) 0);
+        }
+        KeyDescriptor importedKeyDescriptor = metadata != null && metadata.key != null
+                ? metadata.key : descriptor;
+        mKeyStore.updateSubcomponents(importedKeyDescriptor, userCert, chainBytes);
+        return requireUpdatedMetadata(importedKeyDescriptor);
+    }
+
+    private byte[] encodeCertificateChain(List<Certificate> chain)
+            throws CertificateEncodingException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        for (Certificate cert : chain) {
+            try {
+                baos.write(cert.getEncoded());
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to encode certificate", e);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private KeyMetadata requireUpdatedMetadata(KeyDescriptor descriptor) throws KeyStoreException {
+        KeyEntryResponse updated = mKeyStore.getKeyEntry(descriptor);
+        if (updated == null || updated.metadata == null) {
+            throw new ProviderException("Keystore did not return updated key metadata");
+        }
+        return updated.metadata;
+    }
+
     @RequiresPermission(value = android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE,
             conditional = true)
     private void addAttestationParameters(@NonNull List<KeyParameter> params)
-            throws ProviderException, IllegalArgumentException, DeviceIdAttestationException {
+            throws ProviderException, IllegalArgumentException, DeviceIdAttestationException,
+            InvalidAlgorithmParameterException {
         byte[] challenge = mSpec.getAttestationChallenge();
 
         if (challenge != null) {
+            if (challenge.length > MAX_ATTESTATION_CHALLENGE_SIZE_BYTES) {
+                throw new InvalidAlgorithmParameterException(
+                        "Attestation challenge length must be <= "
+                                + MAX_ATTESTATION_CHALLENGE_SIZE_BYTES + " bytes");
+            }
             params.add(KeyStore2ParameterUtils.makeBytes(
                     KeymasterDefs.KM_TAG_ATTESTATION_CHALLENGE, challenge
             ));
@@ -1007,10 +1206,14 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                     KeymasterDefs.KM_TAG_PADDING, padding
             ));
             if (padding == KeymasterDefs.KM_PAD_RSA_OAEP) {
+                // Track if any MGF digest was added
+                final boolean[] mgfDigestAdded = {false};
+
                 ArrayUtils.forEach(mKeymasterMgf1Digests, (mgf1Digest) -> {
                     params.add(KeyStore2ParameterUtils.makeEnum(
                             KeymasterDefs.KM_TAG_RSA_OAEP_MGF_DIGEST, mgf1Digest
                     ));
+                    mgfDigestAdded[0] = true;
                 });
 
                 // If the MGF1 digest setter flag isn't set (i.e. the caller can't specify a custom
@@ -1024,8 +1227,16 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                         if (digest != defaultMgf1Digest) {
                             params.add(KeyStore2ParameterUtils.makeEnum(
                                     KeymasterDefs.KM_TAG_RSA_OAEP_MGF_DIGEST, digest));
+                            mgfDigestAdded[0] = true;
                         }
                     });
+                }
+
+                // KeyMint 3+ requires RSA_OAEP_MGF_DIGEST - ensure at least SHA-1 is present
+                if (!mgfDigestAdded[0]) {
+                    params.add(KeyStore2ParameterUtils.makeEnum(
+                            KeymasterDefs.KM_TAG_RSA_OAEP_MGF_DIGEST,
+                            KeyProperties.Digest.toKeymaster(DEFAULT_MGF1_DIGEST)));
                 }
             }
         });
@@ -1099,6 +1310,56 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
         addAttestationParameters(params);
 
         return params;
+    }
+
+    private Collection<KeyParameter> constructKeyImportArguments()
+            throws InvalidAlgorithmParameterException, DeviceIdAttestationException {
+        List<KeyParameter> importArgs = new ArrayList<>();
+        // Import is not generation: never send attestation or certificate tags
+        // to KeyMint.importKey(). Preserve original purpose, digest, padding,
+        // user-auth and validity restrictions from the generation parameters.
+        for (KeyParameter param : constructKeyGenerationArguments()) {
+            switch (param.tag) {
+                case Tag.ATTESTATION_CHALLENGE:
+                case Tag.ATTESTATION_APPLICATION_ID:
+                case Tag.ATTESTATION_ID_BRAND:
+                case Tag.ATTESTATION_ID_DEVICE:
+                case Tag.ATTESTATION_ID_PRODUCT:
+                case Tag.ATTESTATION_ID_SERIAL:
+                case Tag.ATTESTATION_ID_IMEI:
+                case Tag.ATTESTATION_ID_SECOND_IMEI:
+                case Tag.ATTESTATION_ID_MEID:
+                case Tag.ATTESTATION_ID_MANUFACTURER:
+                case Tag.ATTESTATION_ID_MODEL:
+                case Tag.DEVICE_UNIQUE_ATTESTATION:
+                case Tag.INCLUDE_UNIQUE_ID:
+                case Tag.RESET_SINCE_ID_ROTATION:
+                case Tag.KEY_SIZE:
+                case Tag.EC_CURVE:
+                case Tag.RSA_PUBLIC_EXPONENT:
+                case Tag.CERTIFICATE_NOT_BEFORE:
+                case Tag.CERTIFICATE_NOT_AFTER:
+                case Tag.CERTIFICATE_SERIAL:
+                case Tag.CERTIFICATE_SUBJECT:
+                    break;
+                default:
+                    importArgs.add(param);
+                    break;
+            }
+        }
+        // The import API needs curve or exponent information for the actual
+        // private key material, even though these are not key authorizations.
+        if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_EC) {
+            importArgs.add(KeyStore2ParameterUtils.makeEnum(
+                    Tag.EC_CURVE, keySizeAndNameToEcCurve(mKeySizeBits, mEcCurveName)));
+        } else if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_RSA
+                && mRSAPublicExponent != null) {
+            KeyParameter exponent = new KeyParameter();
+            exponent.tag = Tag.RSA_PUBLIC_EXPONENT;
+            exponent.value = KeyParameterValue.longInteger(mRSAPublicExponent);
+            importArgs.add(exponent);
+        }
+        return importArgs;
     }
 
     private static boolean getMgf1DigestSetterFlag() {
