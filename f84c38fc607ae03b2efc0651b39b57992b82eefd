@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "f293695b_99c48257",
+        "filename": "services/core/java/com/android/server/spoof/SpoofManager.java",
+        "patchSetId": 1
+      },
+      "lineNbr": 101,
+      "author": {
+        "id": 1000090
+      },
+      "writtenOn": "2026-11-08T17:21:35Z",
+      "side": 1,
+      "message": "@astroashwin@outlook.com see this",
+      "revId": "f84c38fc607ae03b2efc0651b39b57992b82eefd",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
