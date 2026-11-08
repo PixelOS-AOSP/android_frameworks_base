@@ -90,6 +90,10 @@ import java.util.NoSuchElementException;
 
 import javax.crypto.SecretKey;
 
+import android.security.pif.PlayIntegritySpoofService;
+import android.security.trickystore.TrickyStoreService;
+import android.security.trickystore.CertificateHacker;
+
 /**
  * A java.security.KeyStore interface for the Android KeyStore. An instance of
  * it can be created via the {@link java.security.KeyStore#getInstance(String)
@@ -115,6 +119,8 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
     private KeyStore2 mKeyStore;
     private @KeyProperties.Namespace int mNamespace = KeyProperties.NAMESPACE_APPLICATION;
+    
+    private static final ThreadLocal<Boolean> sInHack = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     // Defined in RFC 8410.
     private static final String ED25519_OID = "1.3.101.112";
@@ -181,6 +187,10 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
     @Override
     public Certificate[] engineGetCertificateChain(String alias) {
+        if (PlayIntegritySpoofService.shouldBlockCertificateChain()) {
+            throw new UnsupportedOperationException();
+        }
+
         KeyEntryResponse response = getKeyMetadata(alias);
 
         if (response == null || response.metadata.certificate == null) {
@@ -212,7 +222,7 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
         caList[0] = leaf;
 
-        return caList;
+        return hackCertificateChainIfNeeded(alias, caList);
     }
 
     @Override
@@ -225,7 +235,15 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
         byte[] encodedCert = response.metadata.certificate;
         if (encodedCert != null) {
-            return toCertificate(encodedCert);
+            X509Certificate leaf = toCertificate(encodedCert);
+            if (leaf == null) return null;
+            // Ordinary X.509 keys need no second Keystore read. Attested keys
+            // may have a replacement leaf in the chain retrieval path.
+            if (leaf.getExtensionValue("1.3.6.1.4.1.11129.2.1.17") == null) {
+                return leaf;
+            }
+            Certificate[] chain = engineGetCertificateChain(alias);
+            return chain != null && chain.length > 0 ? chain[0] : leaf;
         }
 
         encodedCert = response.metadata.certificateChain;
@@ -267,6 +285,50 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
             Log.w(NAME, "Cannot read MGF1 Digest setter flag value", e);
             return false;
         }
+    }
+
+    private static Certificate[] hackCertificateChainIfNeeded(
+            String alias, Certificate[] chain) {
+        if (chain == null || chain.length == 0
+                || "TrickyStoreTeeCheck".equals(alias)
+                || "trickystore_attestation_key".equals(alias)) {
+            return chain;
+        }
+        if (sInHack.get()) {
+            return chain;
+        }
+        sInHack.set(Boolean.TRUE);
+        try {
+            TrickyStoreService service = TrickyStoreService.getInstance();
+            if (!service.hasKeyboxes()) {
+                return chain;
+            }
+
+            // The SPI executes inside the requesting app process. Binder's
+            // calling UID can refer to an unrelated nested Binder transaction.
+            int callingUid = android.os.Process.myUid();
+            if (android.app.ActivityThread.getPackageManager() == null) {
+                return chain;
+            }
+            String[] packages = android.app.ActivityThread.getPackageManager()
+                    .getPackagesForUid(callingUid);
+
+            if (service.needHack(callingUid, packages)) {
+                Certificate[] hackedChain = CertificateHacker.hackCertificateChain(chain, packages);
+                if (hackedChain != null) {
+                    if (hackedChain != chain) {
+                        Log.d(TAG, "TrickyStore: Updated certificate chain for uid="
+                                + callingUid);
+                    }
+                    return hackedChain;
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "TrickyStore: Failed to hack certificate chain", e);
+        } finally {
+            sInHack.set(Boolean.FALSE);
+        }
+        return chain;
     }
 
     @Override
@@ -1257,8 +1319,17 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
                     return d.alias;
                 }
             } else if (response.metadata.certificateChain != null && caAlias == null) {
-                if (Arrays.equals(response.metadata.certificateChain, targetCertBytes)) {
-                    caAlias =  d.alias;
+                final Collection<X509Certificate> caChain =
+                        toCertificates(response.metadata.certificateChain);
+                if (!caChain.isEmpty()) {
+                    final X509Certificate firstCert = caChain.iterator().next();
+                    try {
+                        if (Arrays.equals(firstCert.getEncoded(), targetCertBytes)) {
+                            caAlias = d.alias;
+                        }
+                    } catch (CertificateEncodingException e) {
+                        Log.w(TAG, "Failed to encode certificate while looking up alias", e);
+                    }
                 }
             }
         }

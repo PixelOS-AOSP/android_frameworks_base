@@ -423,6 +423,8 @@ public final class ActiveServices {
 
     final ActivityManagerService mAm;
 
+    private final ArraySet<String> mFgsTypeBypassPackages;
+
     // Maximum number of services that we allow to start in the background
     // at the same time.
     final int mMaxStartingBackground;
@@ -807,6 +809,8 @@ public final class ActiveServices {
 
     public ActiveServices(ActivityManagerService service) {
         mAm = service;
+        mFgsTypeBypassPackages = new ArraySet<>(service.mContext.getResources().getStringArray(
+                R.array.config_fgsTypeValidationBypassPackages));
         int maxBg = 0;
         try {
             maxBg = Integer.parseInt(SystemProperties.get("ro.config.max_starting_bg", "0"));
@@ -2982,6 +2986,11 @@ public final class ActiveServices {
         final ForegroundServiceTypePolicy policy = ForegroundServiceTypePolicy.getDefaultPolicy();
         final ForegroundServiceTypePolicyInfo policyInfo =
                 policy.getForegroundServiceTypePolicyInfo(type, defaultToType);
+
+        if (mFgsTypeBypassPackages.contains(r.packageName)) {
+            return Pair.create(FGS_TYPE_POLICY_CHECK_OK, null);
+        }
+
         final @ForegroundServicePolicyCheckCode int code = policy.checkForegroundServiceTypePolicy(
                 mAm.mContext, r.packageName, r.getHostProcess().uid, r.getHostProcess().getPid(),
                 r.isFgsAllowedWiu_forStart(), policyInfo);
