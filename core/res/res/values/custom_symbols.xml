@@ -95,6 +95,15 @@
     <java-symbol type="array" name="config_displayModeMappings" />
     <java-symbol type="bool" name="config_defaultAntiFlicker" />
 
+    <!-- Prop/KeyboxImitationHooks -->
+    <java-symbol type="array" name="config_certifiedBuildProperties" />
+    <java-symbol type="array" name="config_certifiedKeybox" />
+    <java-symbol type="string" name="config_stockFingerprint" />
+    <java-symbol type="string" name="config_netflixSpoofModel" />
+
+   <!-- API URL to fetch PIF from -->
+   <java-symbol type="string" name="config_pifUpdateUrl" />
+
     <!-- Define device configs on boot -->
     <java-symbol type="array" name="global_device_configs_override" />
     <java-symbol type="array" name="device_configs_override" />
@@ -118,4 +127,16 @@
 
    <!-- Defines the actions shown in advanced reboot submenu -->
    <java-symbol type="array" name="config_restartActionsList" />
+
+    <!-- Pinned above the auto-assigned range so aapt2 does not fill framework ID gaps. -->
+    <java-symbol type="string" name="config_lightFontFamily" id="0x0104f000" />
+    <java-symbol type="string" name="config_regularFontFamily" id="0x0104f001" />
+    <java-symbol type="dimen" format="float" name="keyguard_clock_line_spacing_scale" id="0x0105f000" />
+    <java-symbol type="bool" name="config_fpCancelIfNotIdle" id="0x0111f000" />
+    <java-symbol type="bool" name="config_forceMultiResolution" id="0x0111f001" />
+    <java-symbol type="array" name="config_launcherComponents" id="0x0107f000" />
+    <java-symbol type="array" name="config_launcherPackages" id="0x0107f001" />
+    <java-symbol type="array" name="config_fgsTypeValidationBypassPackages" id="0x0107f002" />
+    <java-symbol type="array" name="config_alarmManagerValidationBypassPackages" id="0x0107f003" />
+    <java-symbol type="array" name="config_broadcastReceiverValidationBypassPackages" id="0x0107f004" />
 </resources>

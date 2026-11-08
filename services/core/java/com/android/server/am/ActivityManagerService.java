@@ -539,6 +539,7 @@ import com.android.server.power.stats.BatteryStatsImpl;
 import com.android.server.privatecompute.PccSandboxManagerInternal;
 import com.android.server.privatecompute.PrivateComputeStatsLogUtil;
 import com.android.server.sdksandbox.SdkSandboxManagerLocal;
+import com.android.server.spoof.SpoofManager;
 import com.android.server.stats.pull.StatsPullAtomService;
 import com.android.server.stats.pull.StatsPullAtomServiceInternal;
 import com.android.server.uri.GrantUri;
@@ -1797,6 +1798,8 @@ public class ActivityManagerService extends IActivityManager.Stub
      */
     @NonNull
     private final Freezer mFreezer;
+
+    private volatile SpoofManager mSpoofManager;
 
     /*
      * The default duration for the binder heavy hitter auto sampler
@@ -6992,7 +6995,8 @@ public class ActivityManagerService extends IActivityManager.Stub
     @PermissionMethod
     void enforceCallingPermission(@PermissionName String permission, String func) {
         if (checkCallingPermission(permission)
-                == PackageManager.PERMISSION_GRANTED) {
+                == PackageManager.PERMISSION_GRANTED
+           || com.android.internal.util.custom.PixelPropsUtils.shouldBypassTaskPermission(Binder.getCallingUid())) {
             return;
         }
 
@@ -9902,6 +9906,10 @@ public class ActivityManagerService extends IActivityManager.Stub
             mComponentAliasResolver.onSystemReady(mConstants.mEnableComponentAlias,
                     mConstants.mComponentAliasOverrides);
             t.traceEnd(); // componentAlias
+
+            final SpoofManager spoofManager = new SpoofManager(mContext);
+            spoofManager.systemReady();
+            mSpoofManager = spoofManager;
 
             t.traceEnd(); // PhaseActivityManagerReady
         }
@@ -20989,6 +20997,42 @@ public class ActivityManagerService extends IActivityManager.Stub
     @NonNull
     Freezer getFreezer() {
         return mFreezer;
+    }
+
+    @Override
+    public String getSpoofPifConfig() {
+        final SpoofManager spoofManager = mSpoofManager;
+        if (spoofManager == null) {
+            return null;
+        }
+        return spoofManager.getPifConfig(Binder.getCallingUid());
+    }
+
+    @Override
+    public String getSpoofTrickyStoreTarget() {
+        final SpoofManager spoofManager = mSpoofManager;
+        if (spoofManager == null) {
+            return null;
+        }
+        return spoofManager.getTrickyStoreTarget(Binder.getCallingUid());
+    }
+
+    @Override
+    public String getSpoofTrickyStoreKeyBox() {
+        final SpoofManager spoofManager = mSpoofManager;
+        if (spoofManager == null) {
+            return null;
+        }
+        return spoofManager.getTrickyStoreKeyBox(Binder.getCallingUid());
+    }
+
+    @Override
+    public String getSpoofTrickyStorePatch() {
+        final SpoofManager spoofManager = mSpoofManager;
+        if (spoofManager == null) {
+            return null;
+        }
+        return spoofManager.getTrickyStorePatch(Binder.getCallingUid());
     }
 
     // Set of IntentCreatorToken objects that are currently active.
