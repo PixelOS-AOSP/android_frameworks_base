@@ -372,8 +372,17 @@ public final class PlayIntegritySpoofService {
         return DROIDGUARD_PACKAGE.equals(processName) || VENDING_PACKAGE.equals(processName);
     }
 
+    /**
+     * The Developer options switch, and root modules, set this to stop the
+     * Play Services and Play Store build spoof. Read on each check so a
+     * restarted process picks the new value up.
+     */
+    public static boolean gmsPropsDisabled() {
+        return SystemProperties.getBoolean("persist.sys.pihooks.disable.gms_props", false);
+    }
+
     public boolean shouldSpoof(String processName) {
-        if (!isTargetProcess(processName)) {
+        if (gmsPropsDisabled() || !isTargetProcess(processName)) {
             return false;
         }
         ensureLoaded();

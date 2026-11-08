@@ -550,6 +550,9 @@ public class SpoofManager {
      * values.
      */
     public static boolean shouldOverrideSysprops(String processName) {
+        if (PlayIntegritySpoofService.gmsPropsDisabled()) {
+            return false;
+        }
         if (!DROIDGUARD_PROCESS.equals(processName)) {
             return false;
         }
