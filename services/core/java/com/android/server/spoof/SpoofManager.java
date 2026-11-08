@@ -34,15 +34,10 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.security.pif.PlayIntegritySpoofService;
 import android.security.trickystore.TrickyStoreService;
-import android.util.Base64;
 import android.util.Log;
 
 import com.android.internal.util.custom.PixelDeviceRepository;
 
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -71,9 +66,9 @@ public class SpoofManager {
     };
 
     private static final long REFRESH_INTERVAL_MS = TimeUnit.HOURS.toMillis(1);
-    // A fresh install has no keybox or PIF config yet, so don't make it wait a
-    // full hour for the first pass. Retry a few times in case the network isn't
-    // up yet, then fall back to the hourly schedule.
+    // A fresh install has no PIF config yet, so don't make it wait a full hour
+    // for the first pass. Retry a few times in case the network isn't up yet,
+    // then fall back to the hourly schedule.
     private static final long BOOTSTRAP_INITIAL_DELAY_MS = TimeUnit.MINUTES.toMillis(2);
     private static final long BOOTSTRAP_RETRY_MS = TimeUnit.MINUTES.toMillis(10);
     private static final int BOOTSTRAP_MAX_RETRIES = 6;
@@ -89,16 +84,10 @@ public class SpoofManager {
     private static final String SETTINGS_PACKAGE = "com.android.settings";
 
     private static final String PIF_ENABLED_KEY = "spoof_pif_enabled";
-    private static final String TRICKYSTORE_ENABLED_KEY = "spoof_trickystore_enabled";
     private static final String LAST_AUTO_FETCH_KEY = "spoof_pif_last_auto_fetch";
     private static final long AUTO_FETCH_COOLDOWN_MS = TimeUnit.DAYS.toMillis(1);
     private static final long REFETCH_WINDOW_DAYS = 15L;
     private static final Pattern PLAIN_DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
-
-    private static final String KEYBOX_SOURCE_KEY = "spoof_trickystore_keybox_source";
-    private static final String KEYBOX_SOURCE_USER = "user";
-    private static final String OFFICIAL_KEYBOX_URL =
-            "https://git.evolution-x.org/EvoX/keybox/raw/branch/main/keybox.xml";
 
     private static final String GMS_PACKAGE = "com.google.android.gms";
     private static final String VENDING_PACKAGE = "com.android.vending";
@@ -149,10 +138,9 @@ public class SpoofManager {
             "system_ext", "vendor", "vendor_dlkm",
     };
 
-    // Keybox and fingerprint work get their own executor: the fingerprint crawl
-    // is many sequential requests, and a stuck one (cancel() can't interrupt
-    // blocking URLConnection IO) must not hold up the keybox fetch behind it.
-    private final ExecutorService mNetworkExecutor = Executors.newSingleThreadExecutor();
+    // The fingerprint crawl is many sequential requests, and a stuck one
+    // (cancel() can't interrupt blocking URLConnection IO) must not run on the
+    // handler thread that drives PACKAGE_ADDED and the hourly reschedule.
     private final ExecutorService mFingerprintExecutor = Executors.newSingleThreadExecutor();
     private BroadcastReceiver mPackageAddedReceiver;
     private int mBootstrapRetries;
@@ -425,11 +413,10 @@ public class SpoofManager {
     }
 
     /**
-     * Native equivalent of AlwaysStrong's hourly background service: refreshes
-     * the Pixel fingerprint and the official keybox without requiring the
-     * Settings app to be opened. Each network step runs under a hard deadline
-     * so a stalled connection can't stop future ticks from firing. Runs hourly,
-     * or sooner while a fresh install is still missing its keybox or PIF config.
+     * Refreshes the Pixel fingerprint without requiring the Settings app to be
+     * opened. The crawl runs under a hard deadline so a stalled connection
+     * can't stop future ticks from firing. Runs hourly, or sooner while a
+     * fresh install is still missing its PIF config.
      */
     private void performScheduledRefresh() {
         if (!mActivated) return;
@@ -450,36 +437,19 @@ public class SpoofManager {
     private boolean isBootstrapPending() {
         if (mResolver == null) return false;
 
-        boolean pifMissing = isEmpty(Settings.Secure.getStringForUser(
+        return isEmpty(Settings.Secure.getStringForUser(
                         mResolver, Settings.Secure.SPOOF_PIF_CONFIG, UserHandle.USER_SYSTEM))
                 && Settings.System.getIntForUser(
                         mResolver, PIF_ENABLED_KEY, 1, UserHandle.USER_SYSTEM) != 0;
-
-        String keyboxSource = Settings.Secure.getStringForUser(
-                mResolver, KEYBOX_SOURCE_KEY, UserHandle.USER_SYSTEM);
-        boolean keyboxMissing = isEmpty(Settings.Secure.getStringForUser(
-                        mResolver, Settings.Secure.SPOOF_TRICKYSTORE_KEYBOX, UserHandle.USER_SYSTEM))
-                && !KEYBOX_SOURCE_USER.equals(keyboxSource)
-                && Settings.System.getIntForUser(
-                        mResolver, TRICKYSTORE_ENABLED_KEY, 1, UserHandle.USER_SYSTEM) != 0;
-
-        return pifMissing || keyboxMissing;
     }
 
     private static boolean isEmpty(String s) {
         return s == null || s.trim().isEmpty();
     }
 
-    /** One fingerprint + keybox pass, without touching the hourly schedule. */
+    /** One fingerprint pass, without touching the hourly schedule. */
     private void refreshNow() {
         if (!mActivated) return;
-        // Keybox first: it is one small request, while the fingerprint crawl is
-        // the slow one and shouldn't be able to starve it.
-        try {
-            refreshKeyboxIfStale();
-        } catch (Exception e) {
-            Log.e(TAG, "Keybox refresh failed", e);
-        }
         try {
             refreshPixelFingerprintIfStale();
         } catch (Exception e) {
@@ -596,75 +566,6 @@ public class SpoofManager {
     }
 
     /**
-     * Fetches the official keybox mirror and writes it to Settings.Secure if
-     * different from what's cached. Deliberately does none of its own cert
-     * parsing or revocation checking — TrickyStoreService.refreshKeyBox()
-     * already re-validates and re-checks revocation on every read of
-     * SPOOF_TRICKYSTORE_KEYBOX, so this only needs to fetch and dedupe.
-     */
-    private void refreshKeyboxIfStale() throws Exception {
-        if (mResolver == null) return;
-        if (Settings.System.getIntForUser(
-                mResolver, TRICKYSTORE_ENABLED_KEY, 1, UserHandle.USER_SYSTEM) == 0) {
-            return;
-        }
-
-        String source = Settings.Secure.getStringForUser(
-                mResolver, KEYBOX_SOURCE_KEY, UserHandle.USER_SYSTEM);
-        if (KEYBOX_SOURCE_USER.equals(source)) {
-            return; // user manages their own keybox — never overwrite it
-        }
-
-        String xml = runBounded(mNetworkExecutor, () -> {
-            HttpURLConnection conn = (HttpURLConnection) new URL(OFFICIAL_KEYBOX_URL).openConnection();
-            conn.setConnectTimeout(10_000);
-            conn.setReadTimeout(10_000);
-            if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) return null;
-            return new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        });
-        if (xml == null || xml.trim().isEmpty()) return;
-        if (!looksLikeKeybox(xml)) {
-            // A captive portal or error page can come back as a 200; never let
-            // that replace a working keybox.
-            Log.w(TAG, "Keybox mirror returned something that is not a keybox, keeping the current one");
-            return;
-        }
-
-        // The stored value is Base64 (that's how Settings writes it) while the
-        // download is raw XML, so compare decoded XML with decoded XML.
-        String currentXml = decodeKeyboxXml(getCached(Settings.Secure.SPOOF_TRICKYSTORE_KEYBOX));
-        if (currentXml != null && sha256(currentXml).equals(sha256(xml))) {
-            return; // unchanged
-        }
-
-        String encoded = Base64.encodeToString(xml.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
-        Settings.Secure.putStringForUser(
-                mResolver, Settings.Secure.SPOOF_TRICKYSTORE_KEYBOX, encoded, UserHandle.USER_SYSTEM);
-
-        killGmsFamily();
-        Log.i(TAG, "Auto-refreshed official keybox");
-    }
-
-    /** Keybox XML from a stored value that is either raw XML or Base64 of it; null if neither. */
-    private static String decodeKeyboxXml(String payload) {
-        if (payload == null) return null;
-        String trimmed = payload.trim();
-        if (trimmed.startsWith("<")) return trimmed;
-        try {
-            String xml = new String(Base64.decode(trimmed, Base64.DEFAULT),
-                    StandardCharsets.UTF_8).trim();
-            return xml.startsWith("<") ? xml : null;
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private static boolean looksLikeKeybox(String xml) {
-        String head = xml.substring(0, Math.min(xml.length(), 4096));
-        return xml.trim().startsWith("<") && head.contains("Keybox");
-    }
-
-    /**
      * Keeps the TrickyStore attestation patch level in step with the fingerprint
      * that was just saved. With no patch set, attestation reports the device's
      * real patch while PIF spoofs the fingerprint's, and the two disagree. Same
@@ -680,17 +581,6 @@ public class SpoofManager {
         if (patch.equals(trimmed)) return;
         Settings.Secure.putStringForUser(
                 mResolver, Settings.Secure.SPOOF_TRICKYSTORE_PATCH, patch, UserHandle.USER_SYSTEM);
-    }
-
-    private static String sha256(String s) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(s.trim().getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : digest) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (Exception e) {
-            return s; // fall back to raw comparison, still correct, just heavier
-        }
     }
 
     private void killGmsFamily() {
