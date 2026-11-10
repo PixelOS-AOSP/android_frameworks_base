@@ -87,4 +87,19 @@ public final class PowerUtils {
                 context.getString(com.android.internal.R.string.android_system_label));
         notificationCompatBuilder.addExtras(bundle);
     }
+
+    public static void applyExtremeSaverMode(Context context) {
+        try {
+            Bundle bundle = new Bundle(1);
+            bundle.putInt("update_flipendo_mode", 1);
+            context.getContentResolver()
+                    .call(
+                            "com.google.android.flipendo.api",
+                            "update_flipendo_mode_method",
+                            (String) null,
+                            bundle);
+        } catch (Exception e) {
+            Log.e(TAG, "applyExtremeSaverMode() failed", e);
+        }
+    }
 }

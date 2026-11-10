@@ -4,6 +4,18 @@ import com.android.internal.logging.UiEvent;
 import com.android.internal.logging.UiEventLogger;
 
 public enum BatteryMetricEvent implements UiEventLogger.UiEventEnum {
+    @UiEvent(doc = "Battery saver confirmation dialog displayed")
+    SAVER_CONFIRMATION_DIALOG(1347),
+
+    @UiEvent(doc = "Battery saver confirmation dialog turn on clicked")
+    SAVER_CONFIRMATION_DIALOG_TURN_ON(1348),
+
+    @UiEvent(doc = "Battery saver confirmation dialog cancel clicked")
+    SAVER_CONFIRMATION_DIALOG_CANCEL(1349),
+
+    @UiEvent(doc = "Battery saver confirmation dialog setup clicked")
+    SAVER_CONFIRMATION_DIALOG_SETUP(1350),
+
     @UiEvent(doc = "Extreme low battery notification displayed")
     EXTREME_LOW_BATTERY_NOTIFICATION(1351),
 
