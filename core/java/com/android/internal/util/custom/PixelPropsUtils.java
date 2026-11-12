@@ -251,9 +251,12 @@ public final class PixelPropsUtils {
         } else if (sPpModel != null && !sPpModel.isEmpty()) {
             codename = sPpModel;
         } else if (isTablet) {
-            codename = "tangorpro";
+            codename = PixelDeviceRepository.tabletCodename(context);
         } else {
-            codename = PixelDeviceRepository.getDefaultPhoneCodename();
+            codename = PixelDeviceRepository.getDefaultPhoneCodename(context);
+        }
+        if (codename == null) {
+            return;
         }
 
         final PixelDeviceRepository.PixelProfile profile =
