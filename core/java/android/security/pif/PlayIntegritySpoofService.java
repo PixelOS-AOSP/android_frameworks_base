@@ -253,6 +253,7 @@ public final class PlayIntegritySpoofService {
             if (patch != null) mBuildFields.put("SECURITY_PATCH", patch);
         }
         final String sdk = PixelDeviceRepository.resolveInitialSdkInt(
+                ActivityThread.currentApplication(),
                 mBuildFields.get("DEVICE"), mBuildFields.get("DEVICE_INITIAL_SDK_INT"));
         if (sdk != null) mBuildFields.put("DEVICE_INITIAL_SDK_INT", sdk);
     }

@@ -466,6 +466,7 @@ public class SpoofManager {
         setStagedProp(PIF_API_LEVEL_PROP, firstNonEmpty(
                 fields.get("*api_level"),
                 PixelDeviceRepository.resolveInitialSdkInt(
+                        mContext,
                         firstNonEmpty(fields.get("DEVICE"), head != null ? head[2] : null),
                         fields.get("DEVICE_INITIAL_SDK_INT"))));
         stageCustomProps(fields);
