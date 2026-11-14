@@ -142,4 +142,5 @@
 
     <!-- Whether OverScroller reports flings to the "flingboost" service -->
     <java-symbol type="bool" name="config_flingBoost" id="0x0111f002" />
+    <java-symbol type="bool" name="config_defaultSpoofPlayStoreFingerprint" id="0x0111f003" />
 </resources>

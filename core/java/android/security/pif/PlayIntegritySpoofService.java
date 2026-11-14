@@ -6,6 +6,7 @@ import android.app.IActivityManager;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
+import android.content.res.Resources;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Parcel;
@@ -88,10 +89,10 @@ public final class PlayIntegritySpoofService {
     // attestation done in AndroidKeyStoreSpi for a device that has one.
     private volatile boolean mSpoofProvider = false;
     private volatile boolean mSpoofSignature = false;
-    // Replaces the old all-or-nothing "spoofVendingBuild" boolean. This now matches
-    // upstream PlayIntegrityFork semantics: "0"/empty = disabled (default), "1"/"true" =
-    // spoof the configured FINGERPRINT field only, or any other value = use that literal
-    // string as a custom FINGERPRINT to serve to Play Store instead of the DroidGuard one.
+    // Replaces the old all-or-nothing "spoofVendingBuild" boolean. "0"/empty in the
+    // config disables it, "1"/"true" uses the configured FINGERPRINT, and any other
+    // value is a literal FINGERPRINT for Play Store. When the config omits the key,
+    // config_defaultSpoofPlayStoreFingerprint is the default.
     private volatile String mSpoofVendingFinger = "0";
     // 0 = disabled, 1 = spoof Play Store's SDK_INT to 32, N > 1 = spoof it to N.
     // Never raises SDK_INT above the real one.
@@ -179,6 +180,7 @@ public final class PlayIntegritySpoofService {
         }
 
         try {
+            mSpoofVendingFinger = defaultVendingFinger();
             String trimmed = content.trim();
             if (trimmed.startsWith("{")) {
                 parseJson(content);
@@ -358,6 +360,14 @@ public final class PlayIntegritySpoofService {
                 }
                 break;
         }
+    }
+
+    private static String defaultVendingFinger() {
+        if (Resources.getSystem().getBoolean(
+                com.android.internal.R.bool.config_defaultSpoofPlayStoreFingerprint)) {
+            return "1";
+        }
+        return "0";
     }
 
     private static int parseVendingSdk(String value) {
