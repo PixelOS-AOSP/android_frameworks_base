@@ -9910,6 +9910,11 @@ public class ActivityManagerService extends IActivityManager.Stub
             final SpoofManager spoofManager = new SpoofManager(mContext);
             spoofManager.systemReady();
             mSpoofManager = spoofManager;
+            try {
+                android.security.trickystore.AttestationUtils.initBootHash();
+            } catch (Throwable e) {
+                Slog.e(TAG, "Failed to init VBMeta digest", e);
+            }
 
             t.traceEnd(); // PhaseActivityManagerReady
         }
