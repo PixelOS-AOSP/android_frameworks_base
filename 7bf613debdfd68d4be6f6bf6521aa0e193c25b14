@@ -16,6 +16,23 @@
       "message": "This will require permission in SELinux; you previously made a commit with these permissions, but it was never merged.",
       "revId": "7bf613debdfd68d4be6f6bf6521aa0e193c25b14",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2268fac1_c0d71f83",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 5
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000151
+      },
+      "writtenOn": "2026-11-18T09:51:33Z",
+      "side": 1,
+      "message": "https://review.pixelos.net/c/PixelOS-AOSP/android_device_custom_sepolicy/+/12739",
+      "revId": "7bf613debdfd68d4be6f6bf6521aa0e193c25b14",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
