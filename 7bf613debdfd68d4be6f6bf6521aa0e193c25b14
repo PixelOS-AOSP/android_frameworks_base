@@ -33,6 +33,23 @@
       "message": "https://review.pixelos.net/c/PixelOS-AOSP/android_device_custom_sepolicy/+/12739",
       "revId": "7bf613debdfd68d4be6f6bf6521aa0e193c25b14",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "29e4764d_4ed2da7e",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 5
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000151
+      },
+      "writtenOn": "2026-11-18T09:54:22Z",
+      "side": 1,
+      "message": "question is resolved; it’s time for me to buy glasses.",
+      "revId": "7bf613debdfd68d4be6f6bf6521aa0e193c25b14",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
