@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "5acd08c1_dee1cb33",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 5
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000151
+      },
+      "writtenOn": "2026-11-18T09:43:46Z",
+      "side": 1,
+      "message": "This will require permission in SELinux; you previously made a commit with these permissions, but it was never merged.",
+      "revId": "7bf613debdfd68d4be6f6bf6521aa0e193c25b14",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
