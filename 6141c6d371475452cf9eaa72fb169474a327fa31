@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "fa19132a_29a593f7",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000216
+      },
+      "writtenOn": "2026-11-25T17:12:57Z",
+      "side": 1,
+      "message": "While porting PixelOS to the Xiaomi 15, we captured a storage snapshot from our 1 TB test device. We replayed the same snapshot before and after the fix and compared the results below. All values are in decimal GB.\n\n| Storage metric | Before the fix | After the fix |\n|---|---:|---:|\n| Total internal storage | 1,000.00 GB | 1,055.87 GB |\n| Used storage | −37.29 GB | 18.58 GB |\n| Storage attributed to the Android system | −43.07 GB | 12.80 GB |\n\nBefore the fix, the reported total was smaller than the available space, so Settings calculated a negative value for used storage. With the fix, the reported total matches the block device size, and the same snapshot yields 18.58 GB used.\n\nSee the comparison filmed on device:\nhttps://static.melon.blue/Screenshot_20261126_011030.png",
+      "revId": "6141c6d371475452cf9eaa72fb169474a327fa31",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    }
+  ]
+}
