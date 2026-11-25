@@ -278,7 +278,8 @@ public class StorageStatsService extends IStorageStatsManager.Stub {
             final long totalBytesRounded = FileUtils.roundStorageSize(totalBytes);
             // If the storage size is 997GB-999GB, round it to a 1000GB to show
             // 1TB in UI instead of 0.99TB. Same for 2TB, 4TB, 8TB etc.
-            if (totalBytesRounded - totalBytes <= DataUnit.GIGABYTES.toBytes(3)) {
+            final long increase = totalBytesRounded - totalBytes;
+            if (increase >= 0 && increase <= DataUnit.GIGABYTES.toBytes(3)) {
                 return totalBytesRounded;
             } else {
                 return totalBytes;

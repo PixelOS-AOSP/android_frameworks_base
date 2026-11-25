@@ -16,18 +16,28 @@
 
 package com.android.server.usage;
 
+import static android.util.DataUnit.GIGABYTES;
+
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assume.assumeTrue;
+
+import android.app.usage.StorageStatsManager;
+import android.content.Context;
+import android.os.storage.StorageManager;
 import android.provider.Settings;
 import android.test.mock.MockContentResolver;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.internal.util.test.FakeSettingsProvider;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.io.IOException;
 
 @RunWith(AndroidJUnit4.class)
 public final class StorageStatsServiceTest {
@@ -37,6 +47,19 @@ public final class StorageStatsServiceTest {
     public void setUp() throws Exception {
         mContentResolver = new MockContentResolver();
         mContentResolver.addProvider(Settings.AUTHORITY, new FakeSettingsProvider());
+    }
+
+    @Test
+    public void testLargeInternalStorageTotalBytes() throws IOException {
+        final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final StorageManager storage = context.getSystemService(StorageManager.class);
+        assumeTrue(storage.getPrimaryStorageSize() > GIGABYTES.toBytes(512));
+
+        final long blockBytes = storage.getInternalStorageBlockDeviceSize();
+        final long reportedBytes = context.getSystemService(StorageStatsManager.class)
+                .getTotalBytes(StorageManager.UUID_DEFAULT);
+        assertThat(reportedBytes).isAtLeast(blockBytes);
+        assertThat(reportedBytes - blockBytes).isAtMost(GIGABYTES.toBytes(3));
     }
 
     @Test
