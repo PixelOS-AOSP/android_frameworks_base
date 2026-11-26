@@ -850,24 +850,32 @@ public class SpoofManager {
     }
 
     public String getTrickyStoreTarget(int callingUid) {
-        if (!mActivated || !isTrickyStoreCaller(callingUid)) {
+        if (!servesTrickyStore(callingUid)) {
             return null;
         }
         return getCached(Settings.Secure.SPOOF_TRICKYSTORE_TARGET);
     }
 
     public String getTrickyStoreKeyBox(int callingUid) {
-        if (!mActivated || !isTrickyStoreCaller(callingUid)) {
+        if (!servesTrickyStore(callingUid)) {
             return null;
         }
         return getCached(Settings.Secure.SPOOF_TRICKYSTORE_KEYBOX);
     }
 
     public String getTrickyStorePatch(int callingUid) {
-        if (!mActivated || !isTrickyStoreCaller(callingUid)) {
+        if (!servesTrickyStore(callingUid)) {
             return null;
         }
         return getCached(Settings.Secure.SPOOF_TRICKYSTORE_PATCH);
+    }
+
+    private boolean servesTrickyStore(int callingUid) {
+        if (!mActivated || !isTrickyStoreCaller(callingUid)) {
+            return false;
+        }
+        return TrickyStoreService.isAttestationEnabled(
+                mResolver, UserHandle.getUserId(callingUid));
     }
 
     private boolean isPifCaller(int callingUid) {

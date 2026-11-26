@@ -1,0 +1,15 @@
+package {
+    default_applicable_licenses: ["frameworks_base_license"],
+}
+
+java_test_host {
+    name: "TrickyStoreAttestationTests",
+    srcs: [
+        "java/android/security/trickystore/TrickyStoreAttestation.java",
+        "tests/trickystoretests/src/**/*.java",
+    ],
+    static_libs: ["junit"],
+    test_options: {
+        unit_test: true,
+    },
+}

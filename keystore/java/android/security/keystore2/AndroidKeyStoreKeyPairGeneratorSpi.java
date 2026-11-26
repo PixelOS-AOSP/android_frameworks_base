@@ -841,7 +841,7 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                     && !isCurve25519(mEcCurveName)
                     && !"TrickyStoreTeeCheck".equals(mEntryAlias)
                     && !"trickystore_attestation_key".equals(mEntryAlias);
-            if (eligible) {
+            if (eligible && TrickyStoreService.isAttestationEnabledForCurrentProcess()) {
                 try {
                     if (ActivityThread.getPackageManager() != null) {
                         packages = ActivityThread.getPackageManager()

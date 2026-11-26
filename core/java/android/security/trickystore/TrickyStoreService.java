@@ -16,8 +16,12 @@
 package android.security.trickystore;
 
 import android.app.ActivityManager;
+import android.app.ActivityThread;
+import android.app.Application;
 import android.app.IActivityManager;
+import android.content.ContentResolver;
 import android.os.Binder;
+import android.provider.Settings;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.security.keystore.KeyGenParameterSpec;
@@ -187,6 +191,25 @@ public class TrickyStoreService {
             sInstance.initialize();
         }
         return sInstance;
+    }
+
+    /** Attestation switch for {@code userId}. Does not create this service. */
+    public static boolean isAttestationEnabled(ContentResolver resolver, int userId) {
+        if (resolver == null) {
+            return false;
+        }
+        return TrickyStoreAttestation.isEnabled(id -> Settings.System.getStringForUser(
+                resolver, TrickyStoreAttestation.ENABLED_SETTING, id), userId);
+    }
+
+    /** This process's own user. False when the app or the setting cannot be read. */
+    public static boolean isAttestationEnabledForCurrentProcess() {
+        Application app = ActivityThread.currentApplication();
+        if (app == null) {
+            return false;
+        }
+        ContentResolver resolver = app.getContentResolver();
+        return isAttestationEnabled(resolver, resolver.getUserId());
     }
 
     public void initialize() {

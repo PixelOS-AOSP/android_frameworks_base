@@ -297,6 +297,9 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
         if (sInHack.get()) {
             return chain;
         }
+        if (!TrickyStoreService.isAttestationEnabledForCurrentProcess()) {
+            return chain;
+        }
         sInHack.set(Boolean.TRUE);
         try {
             TrickyStoreService service = TrickyStoreService.getInstance();
